@@ -17,7 +17,7 @@ namespace WordpressApi.Controllers
         [HttpPost]
         public StatusCodeResult AddEvent([FromBody]Object json)
         {
-            var addEventEntity = new AddEvent(json.ToString());
+            /*var addEventEntity = new AddEvent(json.ToString());
 
             XmlSerializer xmlSerializer = new XmlSerializer(typeof(AddEvent));
             var xml = "";
@@ -43,7 +43,7 @@ namespace WordpressApi.Controllers
                                      basicProperties: properties,
                                      body: body
                                      );                
-            }
+            }*/
 
             return StatusCode(201);
         }
