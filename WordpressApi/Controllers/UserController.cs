@@ -27,15 +27,16 @@ namespace WordpressApi.Controllers
         [HttpPost]
         public async Task<StatusCodeResult> AddUserAsync([FromBody]Object json)
         {
+            //convert json to addUser object
             var addUserEntity = new AddUser(json.ToString());
 
+            //Create body for requesting UUID for the addUser object
             var body = new Dictionary<string, string>();
             body.Add("frontend", addUserEntity.UserId.ToString());
 
-            string responseBody = null;
-
+            //Make the call for the UUID
             // https://johnthiriet.com/efficient-post-calls/
-
+            string responseBody = null;
             using (var client = new HttpClient())
             using (var request = new HttpRequestMessage(HttpMethod.Post, "http://192.168.1.2/uuids"))
             using (var httpContent = CreateHttpContent(body))
@@ -51,16 +52,18 @@ namespace WordpressApi.Controllers
                 }
             }
 
+            //Convert the response from json to dictionary
             var values = JsonConvert.DeserializeObject<Dictionary<string, string>>(responseBody);
+
             //add response to addUserEntity uuid
             addUserEntity.uuid = values["frontend"];
 
+            //Make an XML from the addUser object
             XmlSerializer xmlSerializer = new XmlSerializer(typeof(AddUser));
             XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
             ns.Add("", "");
 
             string xml;
-
             using (var sww = new StringWriter())
             {
                 using (XmlWriter writer = XmlWriter.Create(sww))
@@ -92,34 +95,36 @@ namespace WordpressApi.Controllers
             schemas.Add("", XmlReader.Create(new StringReader(xsdData)));
 
             var xDoc = XDocument.Parse(xml);
-
-            Console.WriteLine("Validating doc1");
             bool errors = false;
             xDoc.Validate(schemas, (o, e) =>
-            {
-                Console.WriteLine("{0}", e.Message);
+            {                
                 errors = true;
             });
 
-            if (!errors) { 
-            
-            }
-
-            /*var factory = new ConnectionFactory() { HostName = "http://10.3.50.9:5672" };
-            using (var connection = factory.CreateConnection())
-            using (var channel = connection.CreateModel())
-            {
-                var message = json.ToString();
-                var body = Encoding.UTF8.GetBytes(xml);
-                var properties = channel.CreateBasicProperties();
-                properties.Headers = new Dictionary<string, object>();
-                properties.Headers.Add("eventType", "addUser");
-                channel.BasicPublish(exchange: "events.exchange",
-                                     routingKey: "",                                     basicProperties: properties,
-                                     body: body
+            //when no errors send the message to rabbitmq
+            if (!errors) {
+                var factory = new ConnectionFactory()
+                {                    
+                        HostName = "192.168.1.2",
+                        Port = /*AmqpTcpEndpoint.UseDefaultPort*/ 5672,
+                        UserName = "frontend_user",
+                        Password = "frontend_pwd"
+                        
+                };
+                using (var connection = factory.CreateConnection())
+                using (var channel = connection.CreateModel())
+                {                    
+                    var addUserBody = Encoding.UTF8.GetBytes(xml);
+                    var properties = channel.CreateBasicProperties();
+                    properties.Headers = new Dictionary<string, object>();
+                    properties.Headers.Add("eventType", "frontend.addUser");
+                    channel.BasicPublish(exchange: "events.exchange",
+                                     routingKey: "",                                     
+                                     //basicProperties: properties,
+                                     body: addUserBody
                                      );
-            }*/
-
+                }
+            }
             return StatusCode(201);
         }
 
@@ -162,40 +167,7 @@ namespace WordpressApi.Controllers
         [HttpPatch]
         public async Task<StatusCodeResult> PatchUserAsync([FromBody]object json)
         {
-            var patchUserEntity = new UpdateUser(json.ToString());
-
-            HttpClient client = new HttpClient();            
-            var respone = await client.GetAsync("http://192.168.1.2/uuids/frontend/" + patchUserEntity.UserId.ToString());
-
-            //add response to patchUserEntity uuid
-
-            XmlSerializer xmlSerializer = new XmlSerializer(typeof(AddUser));
-            var xml = "";
-
-            using (var sww = new StringWriter())
-            {
-                using (XmlWriter writer = XmlWriter.Create(sww))
-                {
-                    xmlSerializer.Serialize(writer, patchUserEntity);
-                    xml = sww.ToString();
-                }
-            }
-
-            /*var factory = new ConnectionFactory() { HostName = "http://10.3.50.9:5672" };
-            using (var connection = factory.CreateConnection())
-            using (var channel = connection.CreateModel())
-            {
-                var message = json.ToString();
-                var body = Encoding.UTF8.GetBytes(xml);
-                var properties = channel.CreateBasicProperties();
-                properties.Headers = new Dictionary<string, object>();
-                properties.Headers.Add("eventType", "patchUser");
-                channel.BasicPublish(exchange: "events.exchange",
-                                     routingKey: "",                                     basicProperties: properties,
-                                     body: body
-                                     );
-            }*/
-
+            
             return StatusCode(201);
         }
 
