@@ -120,21 +120,12 @@ namespace WordpressApi.Controllers
                     properties.Headers.Add("eventType", "frontend.addUser");
                     channel.BasicPublish(exchange: "events.exchange",
                                      routingKey: "",                                     
-                                     //basicProperties: properties,
+                                     basicProperties: properties,
                                      body: addUserBody
                                      );
                 }
             }
             return StatusCode(201);
-        }
-
-        private static void ValidationCallBack(object sender, ValidationEventArgs args)
-        {
-            if (args.Severity == XmlSeverityType.Warning)
-                Console.WriteLine("\tWarning: Matching schema not found.  No validation occurred." + args.Message);
-            else
-                Console.WriteLine("\tValidation error: " + args.Message);
-
         }
 
         private static HttpContent CreateHttpContent(object content) {
