@@ -56,7 +56,7 @@ namespace WordpressApi.Controllers
             var values = JsonConvert.DeserializeObject<Dictionary<string, string>>(responseBody);
 
             //add response to addUserEntity uuid
-            addUserEntity.uuid = values["frontend"];
+            addUserEntity.uuid = values["uuid"];
 
             //Make an XML from the addUser object
             XmlSerializer xmlSerializer = new XmlSerializer(typeof(AddUser));
@@ -64,9 +64,11 @@ namespace WordpressApi.Controllers
             ns.Add("", "");
 
             string xml;
-            using (var sww = new StringWriter())
+            var settings = new XmlWriterSettings { Encoding = Encoding.UTF8, Indent = true };
+            var stringBuilder = new StringBuilder();
+            using (var sww = new ExtendedStringWriter(stringBuilder, Encoding.UTF8))
             {
-                using (XmlWriter writer = XmlWriter.Create(sww))
+                using (XmlWriter writer = XmlWriter.Create(sww, settings))
                 {
                     xmlSerializer.Serialize(writer, addUserEntity, ns);
                     xml = sww.ToString();
@@ -156,9 +158,9 @@ namespace WordpressApi.Controllers
 
 
         [HttpPatch]
-        public async Task<StatusCodeResult> PatchUserAsync([FromBody]object json)
+        public StatusCodeResult PatchUser([FromBody]object json)
         {
-            
+
             return StatusCode(201);
         }
 
