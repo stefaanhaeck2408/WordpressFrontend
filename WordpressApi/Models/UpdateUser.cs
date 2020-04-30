@@ -8,7 +8,7 @@ using Newtonsoft.Json.Linq;
 namespace WordpressApi.Models
 {
     [XmlRoot(ElementName = "patch_user")]
-    public class UpdateUser
+    public class PatchUser
     {
         [XmlIgnoreAttribute]
         public int UserId { get; set; }
@@ -20,12 +20,12 @@ namespace WordpressApi.Models
         public string postalCode { get; set; }
         public string vat { get; set; }
 
-        public UpdateUser()
+        public PatchUser()
         {
 
         }
 
-        public UpdateUser(string json)
+        public PatchUser(string json)
         {
             JObject jObject = JObject.Parse(json);
             JToken jUser = jObject;

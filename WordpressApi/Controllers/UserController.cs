@@ -119,7 +119,7 @@ namespace WordpressApi.Controllers
                     var addUserBody = Encoding.UTF8.GetBytes(xml);
                     var properties = channel.CreateBasicProperties();
                     properties.Headers = new Dictionary<string, object>();
-                    properties.Headers.Add("eventType", "frontend.addUser");
+                    properties.Headers.Add("eventType", "frontend.add_user");
                     channel.BasicPublish(exchange: "events.exchange",
                                      routingKey: "",                                     
                                      basicProperties: properties,

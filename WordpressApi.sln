@@ -5,7 +5,9 @@ VisualStudioVersion = 16.0.30011.22
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WordpressApi", "WordpressApi\WordpressApi.csproj", "{96C46051-FD3C-4B55-9AE2-82DEA5E7D222}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RabbitMqReceiver", "RabbitMqReceiver\RabbitMqReceiver.csproj", "{71E77BE0-25C9-4355-85EA-FD7E70711F4C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RabbitMqReceiver", "RabbitMqReceiver\RabbitMqReceiver.csproj", "{71E77BE0-25C9-4355-85EA-FD7E70711F4C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "testConnection", "testConnection\testConnection.csproj", "{4F9B14D3-F9A5-4172-BD94-BB846F4C7CB7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{71E77BE0-25C9-4355-85EA-FD7E70711F4C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{71E77BE0-25C9-4355-85EA-FD7E70711F4C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{71E77BE0-25C9-4355-85EA-FD7E70711F4C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4F9B14D3-F9A5-4172-BD94-BB846F4C7CB7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4F9B14D3-F9A5-4172-BD94-BB846F4C7CB7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4F9B14D3-F9A5-4172-BD94-BB846F4C7CB7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4F9B14D3-F9A5-4172-BD94-BB846F4C7CB7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
