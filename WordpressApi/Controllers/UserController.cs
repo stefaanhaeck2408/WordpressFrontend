@@ -61,53 +61,11 @@ namespace WordpressApi.Controllers
                 //add response to addUserEntity uuid
                 addUserEntity.uuid = values["uuid"];
 
-                //Make an XML from the addUser object
-                XmlSerializer xmlSerializer = new XmlSerializer(typeof(AddUser));
-                XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
-                ns.Add("", "");
-
-                string xml;
-                var settings = new XmlWriterSettings { Encoding = Encoding.UTF8, Indent = true };
-                var stringBuilder = new StringBuilder();
-                using (var sww = new ExtendedStringWriter(stringBuilder, Encoding.UTF8))
-                {
-                    using (XmlWriter writer = XmlWriter.Create(sww, settings))
-                    {
-                        xmlSerializer.Serialize(writer, addUserEntity, ns);
-                        xml = sww.ToString();
-                    }
-                }
-
-                //XML validation with XSD
-                string xsdData =
-                    @"<?xml version='1.0'?> 
-                   <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>
-                    <xs:element name='add_user'> 
-                     <xs:complexType> 
-                      <xs:sequence> 
-                        <xs:element name='name' type='xs:string'/> 
-                        <xs:element name='uuid' type='xs:string'/> 
-                        <xs:element name='email' type='xs:string'/> 
-                        <xs:element name='street' type='xs:string'/> 
-                        <xs:element name='municipal' type='xs:string'/> 
-                        <xs:element name='postalCode' type='xs:string'/> 
-                        <xs:element name='vat' type='xs:string'/> 
-                      </xs:sequence> 
-                     </xs:complexType> 
-                    </xs:element> 
-                   </xs:schema>";
-                XmlSchemaSet schemas = new XmlSchemaSet();
-                schemas.Add("", XmlReader.Create(new StringReader(xsdData)));
-
-                var xDoc = XDocument.Parse(xml);
-                bool errors = false;
-                xDoc.Validate(schemas, (o, e) =>
-                {
-                    errors = true;
-                });
+                //Validate XML
+                var xml = XmlAndXsdValidation(addUserEntity);
 
                 //when no errors send the message to rabbitmq
-                if (!errors)
+                if (xml != null)
                 {
                     var factory = new ConnectionFactory()
                     {
@@ -134,39 +92,46 @@ namespace WordpressApi.Controllers
             }
             catch (Exception ex) {
 
-                var factory = new ConnectionFactory()
+                SendMessageToErrorExchange(ex);
+            }
+            
+            return StatusCode(201);
+        }
+
+        private static void SendMessageToErrorExchange(Exception error) {
+            var factory = new ConnectionFactory()
+            {
+                HostName = "192.168.1.2",
+                Port = /*AmqpTcpEndpoint.UseDefaultPort*/ 5672,
+                UserName = "frontend_user",
+                Password = "frontend_pwd"
+
+            };
+            CustomError customError = new CustomError();
+            customError.application_name = "frontend";
+            customError.timestamp = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.fff");
+            customError.message = error.ToString();
+
+            //Make an XML from the error object
+            XmlSerializer xmlSerializer = new XmlSerializer(typeof(CustomError));
+            XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
+            ns.Add("", "");
+
+            string xml;
+            var settings = new XmlWriterSettings { Encoding = Encoding.UTF8, Indent = true };
+            var stringBuilder = new StringBuilder();
+            using (var sww = new ExtendedStringWriter(stringBuilder, Encoding.UTF8))
+            {
+                using (XmlWriter writer = XmlWriter.Create(sww, settings))
                 {
-                    HostName = "192.168.1.2",
-                    Port = /*AmqpTcpEndpoint.UseDefaultPort*/ 5672,
-                    UserName = "frontend_user",
-                    Password = "frontend_pwd"
-
-                };
-                CustomError error = new CustomError();
-                error.application_name = "frontend";
-                error.timestamp = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.fff");
-                error.message = ex.ToString();
-
-                //Make an XML from the error object
-                XmlSerializer xmlSerializer = new XmlSerializer(typeof(CustomError));
-                XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
-                ns.Add("", "");
-
-                string xml;
-                var settings = new XmlWriterSettings { Encoding = Encoding.UTF8, Indent = true };
-                var stringBuilder = new StringBuilder();
-                using (var sww = new ExtendedStringWriter(stringBuilder, Encoding.UTF8))
-                {
-                    using (XmlWriter writer = XmlWriter.Create(sww, settings))
-                    {
-                        xmlSerializer.Serialize(writer, error, ns);
-                        xml = sww.ToString();
-                    }
+                    xmlSerializer.Serialize(writer, error, ns);
+                    xml = sww.ToString();
                 }
+            }
 
-                //XML validation with XSD
-                string xsdData =
-                    @"<?xml version='1.0'?>
+            //XML validation with XSD
+            string xsdData =
+                @"<?xml version='1.0'?>
                         < xs:schema xmlns:xs = 'http://www.w3.org/2001/XMLSchema' > 
                             < xs:element name = 'error' >  
                                 < xs:complexType >   
@@ -179,31 +144,28 @@ namespace WordpressApi.Controllers
                             </ xs:element >
                         </ xs:schema >";
 
-                XmlSchemaSet schemas = new XmlSchemaSet();
-                schemas.Add("", XmlReader.Create(new StringReader(xsdData)));
+            XmlSchemaSet schemas = new XmlSchemaSet();
+            schemas.Add("", XmlReader.Create(new StringReader(xsdData)));
 
-                var xDoc = XDocument.Parse(xml);
-                bool errors = false;
-                xDoc.Validate(schemas, (o, e) =>
-                {
-                    errors = true;
-                });
+            var xDoc = XDocument.Parse(xml);
+            bool errors = false;
+            xDoc.Validate(schemas, (o, e) =>
+            {
+                errors = true;
+            });
 
-                if (!errors)
+            if (!errors)
+            {
+                using (var connection = factory.CreateConnection())
+                using (var channel = connection.CreateModel())
                 {
-                    using (var connection = factory.CreateConnection())
-                    using (var channel = connection.CreateModel())
-                    {
-                        var addUserBody = Encoding.UTF8.GetBytes(xml);
-                        channel.BasicPublish(exchange: "errors.exchange",
-                                         routingKey: "",
-                                         body: addUserBody
-                                         );
-                    }
+                    var addUserBody = Encoding.UTF8.GetBytes(xml);
+                    channel.BasicPublish(exchange: "errors.exchange",
+                                     routingKey: "",
+                                     body: addUserBody
+                                     );
                 }
             }
-            
-            return StatusCode(201);
         }
 
         private static HttpContent CreateHttpContent(object content) {
@@ -265,54 +227,9 @@ namespace WordpressApi.Controllers
                 patchUserEntity.uuid = values["uuid"];
                 patchUserEntity.application_name = "frontend";
 
-                //Make an XML from the addUser object
-                XmlSerializer xmlSerializer = new XmlSerializer(typeof(PatchUser));
-                XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
-                ns.Add("", "");
-
-                string xml;
-                var settings = new XmlWriterSettings { Encoding = Encoding.UTF8, Indent = true };
-                var stringBuilder = new StringBuilder();
-                using (var sww = new ExtendedStringWriter(stringBuilder, Encoding.UTF8))
-                {
-                    using (XmlWriter writer = XmlWriter.Create(sww, settings))
-                    {
-                        xmlSerializer.Serialize(writer, patchUserEntity, ns);
-                        xml = sww.ToString();
-                    }
-                }
-
-                //XML validation with XSD
-                string xsdData =
-                    @"<?xml version='1.0'?> 
-                   <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>
-                    <xs:element name='patch_user'> 
-                     <xs:complexType> 
-                      <xs:sequence>
-                        <xs:element name='application_name' type='xs:string'/> 
-                        <xs:element name='name' type='xs:string'/> 
-                        <xs:element name='uuid' type='xs:string'/> 
-                        <xs:element name='email' type='xs:string'/> 
-                        <xs:element name='street' type='xs:string'/> 
-                        <xs:element name='municipal' type='xs:string'/> 
-                        <xs:element name='postalCode' type='xs:string'/> 
-                        <xs:element name='vat' type='xs:string'/> 
-                      </xs:sequence> 
-                     </xs:complexType> 
-                    </xs:element> 
-                   </xs:schema>";
-                XmlSchemaSet schemas = new XmlSchemaSet();
-                schemas.Add("", XmlReader.Create(new StringReader(xsdData)));
-
-                var xDoc = XDocument.Parse(xml);
-                bool errors = false;
-                xDoc.Validate(schemas, (o, e) =>
-                {
-                    errors = true;
-                });
-
                 //when no errors send the message to rabbitmq
-                if (!errors)
+                string xml = XmlAndXsdValidation(patchUserEntity);
+                if (xml != null)
                 {
                     var factory = new ConnectionFactory()
                     {
@@ -339,78 +256,95 @@ namespace WordpressApi.Controllers
             }
             catch (Exception ex)
             {
+                SendMessageToErrorExchange(ex);                
+            }
+            return StatusCode(201);
+        }
 
-                var factory = new ConnectionFactory()
+        private static string XmlAndXsdValidation(XsdValidation objectThatNeedsValidation) {
+
+            //Make an XML from the object
+            XmlSerializer xmlSerializer = new XmlSerializer(objectThatNeedsValidation.GetType());
+            XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
+            ns.Add("", "");
+
+            string xml;
+            var settings = new XmlWriterSettings { Encoding = Encoding.UTF8, Indent = true };
+            var stringBuilder = new StringBuilder();
+            using (var sww = new ExtendedStringWriter(stringBuilder, Encoding.UTF8))
+            {
+                using (XmlWriter writer = XmlWriter.Create(sww, settings))
                 {
-                    HostName = "192.168.1.2",
-                    Port = /*AmqpTcpEndpoint.UseDefaultPort*/ 5672,
-                    UserName = "frontend_user",
-                    Password = "frontend_pwd"
-
-                };
-                CustomError error = new CustomError();
-                error.application_name = "frontend";
-                error.timestamp = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.fff");
-                error.message = ex.ToString();
-
-                //Make an XML from the error object
-                XmlSerializer xmlSerializer = new XmlSerializer(typeof(AddUser));
-                XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
-                ns.Add("", "");
-
-                string xml;
-                var settings = new XmlWriterSettings { Encoding = Encoding.UTF8, Indent = true };
-                var stringBuilder = new StringBuilder();
-                using (var sww = new ExtendedStringWriter(stringBuilder, Encoding.UTF8))
-                {
-                    using (XmlWriter writer = XmlWriter.Create(sww, settings))
-                    {
-                        xmlSerializer.Serialize(writer, error, ns);
-                        xml = sww.ToString();
-                    }
-                }
-
-                //XML validation with XSD
-                string xsdData =
-                    @"<?xml version='1.0'?>
-                        < xs:schema xmlns:xs = 'http://www.w3.org/2001/XMLSchema' > 
-                            < xs:element name = 'error' >  
-                                < xs:complexType >   
-                                    < xs:sequence >    
-                                        < xs:element name = 'application_name' type = 'xs:string' />       
-                                        < xs:element name = 'timestamp' type = 'xs:string' />          
-                                        < xs:element name = 'message' type = 'xs:string' />             
-                                    </ xs:sequence >              
-                                </ xs:complexType >               
-                            </ xs:element >
-                        </ xs:schema >";
-
-                XmlSchemaSet schemas = new XmlSchemaSet();
-                schemas.Add("", XmlReader.Create(new StringReader(xsdData)));
-
-                var xDoc = XDocument.Parse(xml);
-                bool errors = false;
-                xDoc.Validate(schemas, (o, e) =>
-                {
-                    errors = true;
-                });
-
-                if (!errors)
-                {
-                    using (var connection = factory.CreateConnection())
-                    using (var channel = connection.CreateModel())
-                    {
-                        var addUserBody = Encoding.UTF8.GetBytes(xml);
-                        channel.BasicPublish(exchange: "errors.exchange",
-                                         routingKey: "",
-                                         body: addUserBody
-                                         );
-                    }
+                    xmlSerializer.Serialize(writer, objectThatNeedsValidation, ns);
+                    xml = sww.ToString();
                 }
             }
 
+            //XML validation with XSD
 
-            return StatusCode(201);
+            //Select the xsd file
+            string xsdData = "";
+            if (typeof(PatchUser).IsInstanceOfType(objectThatNeedsValidation)) { 
+                xsdData =
+                @"<?xml version='1.0'?> 
+                   <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>
+                    <xs:element name='patch_user'> 
+                     <xs:complexType> 
+                      <xs:sequence>
+                        <xs:element name='application_name' type='xs:string'/> 
+                        <xs:element name='name' type='xs:string'/> 
+                        <xs:element name='uuid' type='xs:string'/> 
+                        <xs:element name='email' type='xs:string'/> 
+                        <xs:element name='street' type='xs:string'/> 
+                        <xs:element name='municipal' type='xs:string'/> 
+                        <xs:element name='postalCode' type='xs:string'/> 
+                        <xs:element name='vat' type='xs:string'/> 
+                      </xs:sequence> 
+                     </xs:complexType> 
+                    </xs:element> 
+                   </xs:schema>";
+            }
+            if (typeof(AddUser).IsInstanceOfType(objectThatNeedsValidation))
+            {
+                xsdData =
+                @"<?xml version='1.0'?> 
+                   <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>
+                    <xs:element name='add_user'> 
+                     <xs:complexType> 
+                      <xs:sequence> 
+                        <xs:element name='name' type='xs:string'/> 
+                        <xs:element name='uuid' type='xs:string'/> 
+                        <xs:element name='email' type='xs:string'/> 
+                        <xs:element name='street' type='xs:string'/> 
+                        <xs:element name='municipal' type='xs:string'/> 
+                        <xs:element name='postalCode' type='xs:string'/> 
+                        <xs:element name='vat' type='xs:string'/> 
+                      </xs:sequence> 
+                     </xs:complexType> 
+                    </xs:element> 
+                   </xs:schema>";
+            }
+
+            XmlSchemaSet schemas = new XmlSchemaSet();
+            schemas.Add("", XmlReader.Create(new StringReader(xsdData)));
+
+            //Validation of XML
+            var xDoc = XDocument.Parse(xml);
+            bool errors = false;
+            xDoc.Validate(schemas, (o, e) =>
+            {
+                errors = true;
+            });
+
+            //Return null when validation has errors
+            if (errors)
+            {
+                return null;
+            }
+            else {
+                return xml;
+            }
+            
         }
 
         [HttpPost]
