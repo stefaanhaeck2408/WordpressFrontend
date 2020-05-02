@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
 using RabbitMQ.Client;
+using RabbitMqReceiver.Models;
 using WordpressApi.Models;
 
 namespace WordpressApi.Controllers
@@ -27,57 +28,59 @@ namespace WordpressApi.Controllers
         [HttpPost]
         public async Task<StatusCodeResult> AddUserAsync([FromBody]Object json)
         {
-            //convert json to addUser object
-            var addUserEntity = new AddUser(json.ToString());
-
-            //Create body for requesting UUID for the addUser object
-            var body = new Dictionary<string, string>();
-            body.Add("frontend", addUserEntity.UserId.ToString());
-
-            //Make the call for the UUID
-            // https://johnthiriet.com/efficient-post-calls/
-            string responseBody = null;
-            using (var client = new HttpClient())
-            using (var request = new HttpRequestMessage(HttpMethod.Post, "http://192.168.1.2/uuids"))
-            using (var httpContent = CreateHttpContent(body))
+            try
             {
-                request.Content = httpContent;
+                //convert json to addUser object
+                var addUserEntity = new AddUser(json.ToString());
 
-                using (var response = await client
-                    .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
-                    .ConfigureAwait(false))
+                //Create body for requesting UUID for the addUser object
+                var body = new Dictionary<string, string>();
+                body.Add("frontend", addUserEntity.UserId.ToString());
+
+                //Make the call for the UUID
+                // https://johnthiriet.com/efficient-post-calls/
+                string responseBody = null;
+                using (var client = new HttpClient())
+                using (var request = new HttpRequestMessage(HttpMethod.Post, "http://192.168.1.2/uuid-master/uuids"))
+                using (var httpContent = CreateHttpContent(body))
                 {
-                    response.EnsureSuccessStatusCode();
-                    responseBody = await response.Content.ReadAsStringAsync();
+                    request.Content = httpContent;
+
+                    using (var response = await client
+                        .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
+                        .ConfigureAwait(false))
+                    {
+                        response.EnsureSuccessStatusCode();
+                        responseBody = await response.Content.ReadAsStringAsync();
+                    }
                 }
-            }
 
-            //Convert the response from json to dictionary
-            var values = JsonConvert.DeserializeObject<Dictionary<string, string>>(responseBody);
+                //Convert the response from json to dictionary
+                var values = JsonConvert.DeserializeObject<Dictionary<string, string>>(responseBody);
 
-            //add response to addUserEntity uuid
-            addUserEntity.uuid = values["uuid"];
+                //add response to addUserEntity uuid
+                addUserEntity.uuid = values["uuid"];
 
-            //Make an XML from the addUser object
-            XmlSerializer xmlSerializer = new XmlSerializer(typeof(AddUser));
-            XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
-            ns.Add("", "");
+                //Make an XML from the addUser object
+                XmlSerializer xmlSerializer = new XmlSerializer(typeof(AddUser));
+                XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
+                ns.Add("", "");
 
-            string xml;
-            var settings = new XmlWriterSettings { Encoding = Encoding.UTF8, Indent = true };
-            var stringBuilder = new StringBuilder();
-            using (var sww = new ExtendedStringWriter(stringBuilder, Encoding.UTF8))
-            {
-                using (XmlWriter writer = XmlWriter.Create(sww, settings))
+                string xml;
+                var settings = new XmlWriterSettings { Encoding = Encoding.UTF8, Indent = true };
+                var stringBuilder = new StringBuilder();
+                using (var sww = new ExtendedStringWriter(stringBuilder, Encoding.UTF8))
                 {
-                    xmlSerializer.Serialize(writer, addUserEntity, ns);
-                    xml = sww.ToString();
+                    using (XmlWriter writer = XmlWriter.Create(sww, settings))
+                    {
+                        xmlSerializer.Serialize(writer, addUserEntity, ns);
+                        xml = sww.ToString();
+                    }
                 }
-            }
 
-            //XML validation with XSD
-            string xsdData =
-                @"<?xml version='1.0'?> 
+                //XML validation with XSD
+                string xsdData =
+                    @"<?xml version='1.0'?> 
                    <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>
                     <xs:element name='add_user'> 
                      <xs:complexType> 
@@ -93,40 +96,113 @@ namespace WordpressApi.Controllers
                      </xs:complexType> 
                     </xs:element> 
                    </xs:schema>";
-            XmlSchemaSet schemas = new XmlSchemaSet();
-            schemas.Add("", XmlReader.Create(new StringReader(xsdData)));
+                XmlSchemaSet schemas = new XmlSchemaSet();
+                schemas.Add("", XmlReader.Create(new StringReader(xsdData)));
 
-            var xDoc = XDocument.Parse(xml);
-            bool errors = false;
-            xDoc.Validate(schemas, (o, e) =>
-            {                
-                errors = true;
-            });
+                var xDoc = XDocument.Parse(xml);
+                bool errors = false;
+                xDoc.Validate(schemas, (o, e) =>
+                {
+                    errors = true;
+                });
 
-            //when no errors send the message to rabbitmq
-            if (!errors) {
-                var factory = new ConnectionFactory()
-                {                    
+                //when no errors send the message to rabbitmq
+                if (!errors)
+                {
+                    var factory = new ConnectionFactory()
+                    {
                         HostName = "192.168.1.2",
                         Port = /*AmqpTcpEndpoint.UseDefaultPort*/ 5672,
                         UserName = "frontend_user",
                         Password = "frontend_pwd"
-                        
-                };
-                using (var connection = factory.CreateConnection())
-                using (var channel = connection.CreateModel())
-                {                    
-                    var addUserBody = Encoding.UTF8.GetBytes(xml);
-                    var properties = channel.CreateBasicProperties();
-                    properties.Headers = new Dictionary<string, object>();
-                    properties.Headers.Add("eventType", "frontend.add_user");
-                    channel.BasicPublish(exchange: "events.exchange",
-                                     routingKey: "",                                     
-                                     basicProperties: properties,
-                                     body: addUserBody
-                                     );
+
+                    };
+                    using (var connection = factory.CreateConnection())
+                    using (var channel = connection.CreateModel())
+                    {
+                        var addUserBody = Encoding.UTF8.GetBytes(xml);
+                        var properties = channel.CreateBasicProperties();
+                        properties.Headers = new Dictionary<string, object>();
+                        properties.Headers.Add("eventType", "frontend.add_user");
+                        channel.BasicPublish(exchange: "events.exchange",
+                                         routingKey: "",
+                                         basicProperties: properties,
+                                         body: addUserBody
+                                         );
+                    }
                 }
             }
+            catch (Exception ex) {
+
+                var factory = new ConnectionFactory()
+                {
+                    HostName = "192.168.1.2",
+                    Port = /*AmqpTcpEndpoint.UseDefaultPort*/ 5672,
+                    UserName = "frontend_user",
+                    Password = "frontend_pwd"
+
+                };
+                CustomError error = new CustomError();
+                error.application_name = "frontend";
+                error.timestamp = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.fff");
+                error.message = ex.ToString();
+
+                //Make an XML from the error object
+                XmlSerializer xmlSerializer = new XmlSerializer(typeof(CustomError));
+                XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
+                ns.Add("", "");
+
+                string xml;
+                var settings = new XmlWriterSettings { Encoding = Encoding.UTF8, Indent = true };
+                var stringBuilder = new StringBuilder();
+                using (var sww = new ExtendedStringWriter(stringBuilder, Encoding.UTF8))
+                {
+                    using (XmlWriter writer = XmlWriter.Create(sww, settings))
+                    {
+                        xmlSerializer.Serialize(writer, error, ns);
+                        xml = sww.ToString();
+                    }
+                }
+
+                //XML validation with XSD
+                string xsdData =
+                    @"<?xml version='1.0'?>
+                        < xs:schema xmlns:xs = 'http://www.w3.org/2001/XMLSchema' > 
+                            < xs:element name = 'error' >  
+                                < xs:complexType >   
+                                    < xs:sequence >    
+                                        < xs:element name = 'application_name' type = 'xs:string' />       
+                                        < xs:element name = 'timestamp' type = 'xs:string' />          
+                                        < xs:element name = 'message' type = 'xs:string' />             
+                                    </ xs:sequence >              
+                                </ xs:complexType >               
+                            </ xs:element >
+                        </ xs:schema >";
+
+                XmlSchemaSet schemas = new XmlSchemaSet();
+                schemas.Add("", XmlReader.Create(new StringReader(xsdData)));
+
+                var xDoc = XDocument.Parse(xml);
+                bool errors = false;
+                xDoc.Validate(schemas, (o, e) =>
+                {
+                    errors = true;
+                });
+
+                if (!errors)
+                {
+                    using (var connection = factory.CreateConnection())
+                    using (var channel = connection.CreateModel())
+                    {
+                        var addUserBody = Encoding.UTF8.GetBytes(xml);
+                        channel.BasicPublish(exchange: "errors.exchange",
+                                         routingKey: "",
+                                         body: addUserBody
+                                         );
+                    }
+                }
+            }
+            
             return StatusCode(201);
         }
 
@@ -157,9 +233,189 @@ namespace WordpressApi.Controllers
         }
 
 
-        [HttpPatch]
-        public StatusCodeResult PatchUser([FromBody]object json)
+        [HttpPost]
+        public async  Task<StatusCodeResult> PatchUser([FromBody]object json)
         {
+
+            try
+            {
+                //convert json to addUser object
+                var patchUserEntity = new PatchUser(json.ToString());
+                
+                //Make the call for the UUID                
+                string responseBody = null;
+                var url = "http://192.168.1.2/uuid-master/uuids/frontend/" + patchUserEntity.UserId;
+                using (var client = new HttpClient())
+                using (var request = new HttpRequestMessage(HttpMethod.Get, url))                
+                {                   
+
+                    using (var response = await client
+                        .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
+                        .ConfigureAwait(false))
+                    {
+                        response.EnsureSuccessStatusCode();
+                        responseBody = await response.Content.ReadAsStringAsync();
+                    }
+                }
+
+                //Convert the response from json to dictionary
+                var values = JsonConvert.DeserializeObject<Dictionary<string, string>>(responseBody);
+
+                //add response to addUserEntity uuid
+                patchUserEntity.uuid = values["uuid"];
+                patchUserEntity.application_name = "frontend";
+
+                //Make an XML from the addUser object
+                XmlSerializer xmlSerializer = new XmlSerializer(typeof(PatchUser));
+                XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
+                ns.Add("", "");
+
+                string xml;
+                var settings = new XmlWriterSettings { Encoding = Encoding.UTF8, Indent = true };
+                var stringBuilder = new StringBuilder();
+                using (var sww = new ExtendedStringWriter(stringBuilder, Encoding.UTF8))
+                {
+                    using (XmlWriter writer = XmlWriter.Create(sww, settings))
+                    {
+                        xmlSerializer.Serialize(writer, patchUserEntity, ns);
+                        xml = sww.ToString();
+                    }
+                }
+
+                //XML validation with XSD
+                string xsdData =
+                    @"<?xml version='1.0'?> 
+                   <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>
+                    <xs:element name='patch_user'> 
+                     <xs:complexType> 
+                      <xs:sequence>
+                        <xs:element name='application_name' type='xs:string'/> 
+                        <xs:element name='name' type='xs:string'/> 
+                        <xs:element name='uuid' type='xs:string'/> 
+                        <xs:element name='email' type='xs:string'/> 
+                        <xs:element name='street' type='xs:string'/> 
+                        <xs:element name='municipal' type='xs:string'/> 
+                        <xs:element name='postalCode' type='xs:string'/> 
+                        <xs:element name='vat' type='xs:string'/> 
+                      </xs:sequence> 
+                     </xs:complexType> 
+                    </xs:element> 
+                   </xs:schema>";
+                XmlSchemaSet schemas = new XmlSchemaSet();
+                schemas.Add("", XmlReader.Create(new StringReader(xsdData)));
+
+                var xDoc = XDocument.Parse(xml);
+                bool errors = false;
+                xDoc.Validate(schemas, (o, e) =>
+                {
+                    errors = true;
+                });
+
+                //when no errors send the message to rabbitmq
+                if (!errors)
+                {
+                    var factory = new ConnectionFactory()
+                    {
+                        HostName = "192.168.1.2",
+                        Port = /*AmqpTcpEndpoint.UseDefaultPort*/ 5672,
+                        UserName = "frontend_user",
+                        Password = "frontend_pwd"
+
+                    };
+                    using (var connection = factory.CreateConnection())
+                    using (var channel = connection.CreateModel())
+                    {
+                        var patchUserBody = Encoding.UTF8.GetBytes(xml);
+                        var properties = channel.CreateBasicProperties();
+                        properties.Headers = new Dictionary<string, object>();
+                        properties.Headers.Add("eventType", "frontend.patch_user");
+                        channel.BasicPublish(exchange: "events.exchange",
+                                         routingKey: "",
+                                         basicProperties: properties,
+                                         body: patchUserBody
+                                         );
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+
+                var factory = new ConnectionFactory()
+                {
+                    HostName = "192.168.1.2",
+                    Port = /*AmqpTcpEndpoint.UseDefaultPort*/ 5672,
+                    UserName = "frontend_user",
+                    Password = "frontend_pwd"
+
+                };
+                CustomError error = new CustomError();
+                error.application_name = "frontend";
+                error.timestamp = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.fff");
+                error.message = ex.ToString();
+
+                //Make an XML from the error object
+                XmlSerializer xmlSerializer = new XmlSerializer(typeof(AddUser));
+                XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
+                ns.Add("", "");
+
+                string xml;
+                var settings = new XmlWriterSettings { Encoding = Encoding.UTF8, Indent = true };
+                var stringBuilder = new StringBuilder();
+                using (var sww = new ExtendedStringWriter(stringBuilder, Encoding.UTF8))
+                {
+                    using (XmlWriter writer = XmlWriter.Create(sww, settings))
+                    {
+                        xmlSerializer.Serialize(writer, error, ns);
+                        xml = sww.ToString();
+                    }
+                }
+
+                //XML validation with XSD
+                string xsdData =
+                    @"<?xml version='1.0'?>
+                        < xs:schema xmlns:xs = 'http://www.w3.org/2001/XMLSchema' > 
+                            < xs:element name = 'error' >  
+                                < xs:complexType >   
+                                    < xs:sequence >    
+                                        < xs:element name = 'application_name' type = 'xs:string' />       
+                                        < xs:element name = 'timestamp' type = 'xs:string' />          
+                                        < xs:element name = 'message' type = 'xs:string' />             
+                                    </ xs:sequence >              
+                                </ xs:complexType >               
+                            </ xs:element >
+                        </ xs:schema >";
+
+                XmlSchemaSet schemas = new XmlSchemaSet();
+                schemas.Add("", XmlReader.Create(new StringReader(xsdData)));
+
+                var xDoc = XDocument.Parse(xml);
+                bool errors = false;
+                xDoc.Validate(schemas, (o, e) =>
+                {
+                    errors = true;
+                });
+
+                if (!errors)
+                {
+                    using (var connection = factory.CreateConnection())
+                    using (var channel = connection.CreateModel())
+                    {
+                        var addUserBody = Encoding.UTF8.GetBytes(xml);
+                        channel.BasicPublish(exchange: "errors.exchange",
+                                         routingKey: "",
+                                         body: addUserBody
+                                         );
+                    }
+                }
+            }
+
+
+            return StatusCode(201);
+        }
+
+        [HttpPost]
+
+        public StatusCodeResult RequestInvoice([FromBody]object json) {
 
             return StatusCode(201);
         }

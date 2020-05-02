@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Threading;
 using System.Xml;
@@ -11,6 +12,8 @@ using System.Xml.Serialization;
 using Newtonsoft.Json;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using RabbitMqReceiver.Models;
+using WordpressApi;
 using WordpressApi.Models;
 using WordPressPCL;
 using WordPressPCL.Models;
@@ -137,110 +140,231 @@ namespace RabbitMqReceiver
         }
 
         private static void ReceiverRabbitMQUsers()
-        {            
-            //Make the connection to receive users
+        {
             var factory = new ConnectionFactory()
-            {
-                HostName = "192.168.1.2",
-                Port = /*AmqpTcpEndpoint.UseDefaultPort*/ 5672,
-                UserName = "frontend_user",
-                Password = "frontend_pwd"
-
-            }; 
-            using (var connection = factory.CreateConnection())
-            using (var channel = connection.CreateModel())
-            {                
-                var consumer = new EventingBasicConsumer(channel);
-                consumer.Received += async (model, ea) =>
-                {
-                    //Receiving data
-                    var body = ea.Body.ToArray();
-                    var xml = Encoding.UTF8.GetString(body);
-                    Console.WriteLine(" [x] Received {0}", xml);
-
-                    //Validate received xml
-                    string xsdData =
-                              @"<?xml version='1.0'?> 
-                               <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>
-                                <xs:element name='add_user'> 
-                                 <xs:complexType> 
-                                  <xs:sequence> 
-                                    <xs:element name='name' type='xs:string'/> 
-                                    <xs:element name='uuid' type='xs:string'/> 
-                                    <xs:element name='email' type='xs:string'/> 
-                                    <xs:element name='street' type='xs:string'/> 
-                                    <xs:element name='municipal' type='xs:string'/> 
-                                    <xs:element name='postalCode' type='xs:string'/> 
-                                    <xs:element name='vat' type='xs:string'/> 
-                                  </xs:sequence> 
-                                 </xs:complexType> 
-                                </xs:element> 
-                               </xs:schema>";
-
-                    XmlSchemaSet schemas = new XmlSchemaSet();
-                    schemas.Add("", XmlReader.Create(new StringReader(xsdData)));
-
-                    var xDoc = XDocument.Parse(xml);
-                    bool errors = false;
-                    xDoc.Validate(schemas, (o, e) =>
-                    {
-                        errors = true;
-                    });
-
-                    //When no errors in validation make an object out of the xml data
-                    if (!errors)
-                    {
-                        XmlSerializer serializer = new XmlSerializer(typeof(AddUser));
-
-                        AddUser receivedUser;
-
-                        using (StringReader reader = new StringReader(xml))
-                        {
-                            receivedUser = (AddUser)serializer.Deserialize(reader);
-
-                            //Check if user is coming from frontend or other place
-                            if (await CheckIfUserIsComingFromOutside(receivedUser.uuid))
                             {
+                                HostName = "192.168.1.2",
+                                Port = /*AmqpTcpEndpoint.UseDefaultPort*/ 5672,
+                                UserName = "frontend_user",
+                                Password = "frontend_pwd"
 
-                                //Connect to wordpress
-                                var client = new WordPressClient("http://127.0.0.1/wordpress/wp-json");
-                                client.AuthMethod = WordPressPCL.Models.AuthMethod.JWT;
-                                await client.RequestJWToken("stefaan.haeck@student.ehb.be", "integration");
+                            };
+            try
+            {
+                //Make the connection to receive users
+                 
+                using (var connection = factory.CreateConnection())
+                using (var channel = connection.CreateModel())
+                {                
+                    var consumer = new EventingBasicConsumer(channel);
+                    consumer.Received += async (model, ea) =>
+                    {
+                        //Receiving data
+                        var body = ea.Body.ToArray();
+                        var xml = Encoding.UTF8.GetString(body);
+                        Console.WriteLine(" [x] Received {0}", xml);
 
-                                //Make collection of meta data
-                                Dictionary<string, string> metadata = new Dictionary<string, string>();
-                                                                
-                                metadata.Add("name", receivedUser.name);
-                                metadata.Add("street", receivedUser.street);
-                                metadata.Add("municipal", receivedUser.municipal);
-                                metadata.Add("postal_code", receivedUser.postalCode);
-                                metadata.Add("vat", receivedUser.vat);
+                        //Validate received xml
+                        string xsdData =
+                                  @"<?xml version='1.0'?> 
+                                   <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>
+                                    <xs:element name='add_user'> 
+                                     <xs:complexType> 
+                                      <xs:sequence> 
+                                        <xs:element name='name' type='xs:string'/> 
+                                        <xs:element name='uuid' type='xs:string'/> 
+                                        <xs:element name='email' type='xs:string'/> 
+                                        <xs:element name='street' type='xs:string'/> 
+                                        <xs:element name='municipal' type='xs:string'/> 
+                                        <xs:element name='postalCode' type='xs:string'/> 
+                                        <xs:element name='vat' type='xs:string'/> 
+                                      </xs:sequence> 
+                                     </xs:complexType> 
+                                    </xs:element> 
+                                   </xs:schema>";
 
+                        XmlSchemaSet schemas = new XmlSchemaSet();
+                        schemas.Add("", XmlReader.Create(new StringReader(xsdData)));
 
-                                if (await client.IsValidJWToken())
+                        var xDoc = XDocument.Parse(xml);
+                        bool errors = false;
+                        xDoc.Validate(schemas, (o, e) =>
+                        {
+                            errors = true;
+                        });
+
+                        //When no errors in validation make an object out of the xml data
+                        if (!errors)
+                        {
+                            XmlSerializer serializer = new XmlSerializer(typeof(AddUser));
+
+                            AddUser receivedUser;
+
+                            using (StringReader reader = new StringReader(xml))
+                            {
+                                receivedUser = (AddUser)serializer.Deserialize(reader);
+
+                                //Check if user is coming from frontend or other place
+                                if (await CheckIfUserIsComingFromOutside(receivedUser.uuid))
                                 {
-                                    var user = new User
+
+                                    //Connect to wordpress
+                                    var client = new WordPressClient("http://127.0.0.1/wordpress/wp-json");
+                                    client.AuthMethod = WordPressPCL.Models.AuthMethod.JWT;
+                                    await client.RequestJWToken("stefaan.haeck@student.ehb.be", "integration");
+
+                                    //Make collection of meta data
+                                    Dictionary<string, string> metadata = new Dictionary<string, string>();
+                                                                
+                                    metadata.Add("name", receivedUser.name);
+                                    metadata.Add("street", receivedUser.street);
+                                    metadata.Add("municipal", receivedUser.municipal);
+                                    metadata.Add("postal_code", receivedUser.postalCode);
+                                    metadata.Add("vat", receivedUser.vat);
+
+
+                                    if (await client.IsValidJWToken())
                                     {
-                                        UserName = receivedUser.name,
-                                        Email = receivedUser.email,
-                                        Password = receivedUser.name + "pass",
-                                        Meta = metadata
-                                    };
+                                        var user = new User
+                                        {
+                                            UserName = receivedUser.name,
+                                            Email = receivedUser.email,
+                                            Password = receivedUser.name + "pass",
+                                            Meta = metadata
+                                        };
 
-                                    var test = await client.Users.Create(user);
+                                        var responseUser = await client.Users.Create(user);
+
+                                        //Create body for requesting UUID for the addUser object
+                                        var bodyUuid = new Dictionary<string, string>();
+                                        bodyUuid.Add("frontend", responseUser.Id.ToString());
+
+                                        //Make the call to patch the UUID                                    
+                                        string responseBody = null;
+                                        string url = "http://192.168.1.2/uuid-master/uuids/" + receivedUser.uuid;
+                                        using (var clientUuid = new HttpClient())
+                                        using (var request = new HttpRequestMessage(HttpMethod.Patch, url))
+                                        using (var httpContent = CreateHttpContent(body))
+                                        {
+                                            request.Content = httpContent;
+
+                                            using (var response = await clientUuid
+                                                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
+                                                .ConfigureAwait(false))
+                                            {
+                                                response.EnsureSuccessStatusCode();
+                                                responseBody = await response.Content.ReadAsStringAsync();
+                                            }
+                                        }
+                                    }
+
                                 }
-
                             }
                         }
-                    }
                     
-                };
-                channel.BasicConsume(queue: "frontend.queue",
-                                         autoAck: true,
-                                         consumer: consumer);
+                    };
+                    channel.BasicConsume(queue: "frontend.queue",
+                                             autoAck: true,
+                                             consumer: consumer);
 
-                Console.WriteLine(" Press [enter] to exit.");
-                Console.ReadLine();
+                    Console.WriteLine(" Press [enter] to exit.");
+                    Console.ReadLine();
+                }
+            }
+            catch (Exception ex) {
+
+                CustomError error = new CustomError();
+                error.application_name = "frontend";
+                error.timestamp = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.fff");
+                error.message = ex.ToString();
+
+                //Make an XML from the error object
+                XmlSerializer xmlSerializer = new XmlSerializer(typeof(CustomError));
+                XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
+                ns.Add("", "");
+
+                string xml;
+                var settings = new XmlWriterSettings { Encoding = Encoding.UTF8, Indent = true };
+                var stringBuilder = new StringBuilder();
+                using (var sww = new ExtendedStringWriter(stringBuilder, Encoding.UTF8))
+                {
+                    using (XmlWriter writer = XmlWriter.Create(sww, settings))
+                    {
+                        xmlSerializer.Serialize(writer, error, ns);
+                        xml = sww.ToString();
+                    }
+                }
+
+                //XML validation with XSD
+                string xsdData =
+                    @"<?xml version='1.0'?>
+                        < xs:schema xmlns:xs = 'http://www.w3.org/2001/XMLSchema' > 
+                            < xs:element name = 'error' >  
+                                < xs:complexType >   
+                                    < xs:sequence >    
+                                        < xs:element name = 'application_name' type = 'xs:string' />       
+                                        < xs:element name = 'timestamp' type = 'xs:string' />          
+                                        < xs:element name = 'message' type = 'xs:string' />             
+                                    </ xs:sequence >              
+                                </ xs:complexType >               
+                            </ xs:element >
+                        </ xs:schema >";
+
+                XmlSchemaSet schemas = new XmlSchemaSet();
+                schemas.Add("", XmlReader.Create(new StringReader(xsdData)));
+
+                var xDoc = XDocument.Parse(xml);
+                bool errors = false;
+                xDoc.Validate(schemas, (o, e) =>
+                {
+                    errors = true;
+                });
+
+                if (!errors) { 
+                    using (var connection = factory.CreateConnection())
+                    using (var channel = connection.CreateModel())
+                    {
+                        var addUserBody = Encoding.UTF8.GetBytes(xml);                    
+                        channel.BasicPublish(exchange: "errors.exchange",
+                                         routingKey: "",                                     
+                                         body: addUserBody
+                                         );
+                    }
+                }
+
+
+
+                
+            }
+
+            
+        }
+
+        private static HttpContent CreateHttpContent(object content)
+        {
+
+            HttpContent httpContent = null;
+
+            if (content != null)
+            {
+                var ms = new MemoryStream();
+                SerializeJsonIntoStream(content, ms);
+                ms.Seek(0, SeekOrigin.Begin);
+                httpContent = new StreamContent(ms);
+                httpContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            }
+
+            return httpContent;
+        }
+
+        public static void SerializeJsonIntoStream(object value, Stream stream)
+        {
+            using (var sw = new StreamWriter(stream, new UTF8Encoding(false), 1024, true))
+            using (var jtw = new JsonTextWriter(sw) { Formatting = Newtonsoft.Json.Formatting.None })
+            {
+                var js = new JsonSerializer();
+                js.Serialize(jtw, value);
+                jtw.Flush();
             }
         }
 
