@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace WordpressApi.Models
 {
-    public interface XsdValidation
+    public interface IXsdValidation
     {
     }
 }

@@ -25,6 +25,17 @@ namespace WordpressApi.Controllers
     [ApiController]
     public class UserController : ControllerBase
     {
+        private static ConnectionFactory factory;
+        public UserController()
+        {
+            factory = new ConnectionFactory()
+            {
+                HostName = "192.168.1.2",
+                Port = /*AmqpTcpEndpoint.UseDefaultPort*/ 5672,
+                UserName = "frontend_user",
+                Password = "frontend_pwd"
+            };
+        }
         [HttpPost]
         public async Task<StatusCodeResult> AddUserAsync([FromBody]Object json)
         {
@@ -60,21 +71,14 @@ namespace WordpressApi.Controllers
 
                 //add response to addUserEntity uuid
                 addUserEntity.uuid = values["uuid"];
+                addUserEntity.application_name = "frontend";
 
                 //Validate XML
                 var xml = XmlAndXsdValidation(addUserEntity);
 
                 //when no errors send the message to rabbitmq
                 if (xml != null)
-                {
-                    var factory = new ConnectionFactory()
-                    {
-                        HostName = "192.168.1.2",
-                        Port = /*AmqpTcpEndpoint.UseDefaultPort*/ 5672,
-                        UserName = "frontend_user",
-                        Password = "frontend_pwd"
-
-                    };
+                {    
                     using (var connection = factory.CreateConnection())
                     using (var channel = connection.CreateModel())
                     {
@@ -99,14 +103,7 @@ namespace WordpressApi.Controllers
         }
 
         private static void SendMessageToErrorExchange(Exception error) {
-            var factory = new ConnectionFactory()
-            {
-                HostName = "192.168.1.2",
-                Port = /*AmqpTcpEndpoint.UseDefaultPort*/ 5672,
-                UserName = "frontend_user",
-                Password = "frontend_pwd"
-
-            };
+            
             CustomError customError = new CustomError();
             customError.application_name = "frontend";
             customError.timestamp = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.fff");
@@ -230,15 +227,7 @@ namespace WordpressApi.Controllers
                 //when no errors send the message to rabbitmq
                 string xml = XmlAndXsdValidation(patchUserEntity);
                 if (xml != null)
-                {
-                    var factory = new ConnectionFactory()
-                    {
-                        HostName = "192.168.1.2",
-                        Port = /*AmqpTcpEndpoint.UseDefaultPort*/ 5672,
-                        UserName = "frontend_user",
-                        Password = "frontend_pwd"
-
-                    };
+                {                    
                     using (var connection = factory.CreateConnection())
                     using (var channel = connection.CreateModel())
                     {
@@ -261,7 +250,7 @@ namespace WordpressApi.Controllers
             return StatusCode(201);
         }
 
-        private static string XmlAndXsdValidation(XsdValidation objectThatNeedsValidation) {
+        private static string XmlAndXsdValidation(IXsdValidation objectThatNeedsValidation) {
 
             //Make an XML from the object
             XmlSerializer xmlSerializer = new XmlSerializer(objectThatNeedsValidation.GetType());
@@ -312,6 +301,7 @@ namespace WordpressApi.Controllers
                     <xs:element name='add_user'> 
                      <xs:complexType> 
                       <xs:sequence> 
+                        <xs:element name='application_name' type='xs:string'/>
                         <xs:element name='name' type='xs:string'/> 
                         <xs:element name='uuid' type='xs:string'/> 
                         <xs:element name='email' type='xs:string'/> 
@@ -319,6 +309,21 @@ namespace WordpressApi.Controllers
                         <xs:element name='municipal' type='xs:string'/> 
                         <xs:element name='postalCode' type='xs:string'/> 
                         <xs:element name='vat' type='xs:string'/> 
+                      </xs:sequence> 
+                     </xs:complexType> 
+                    </xs:element> 
+                   </xs:schema>";
+            }
+            if (typeof(RequestInvoice).IsInstanceOfType(objectThatNeedsValidation))
+            {
+                xsdData =
+                @"<?xml version='1.0'?> 
+                   <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>
+                    <xs:element name='email_invoice'> 
+                     <xs:complexType> 
+                      <xs:sequence> 
+                        <xs:element name='application_name' type='xs:string'/>                        
+                        <xs:element name='uuid' type='xs:string'/>                         
                       </xs:sequence> 
                      </xs:complexType> 
                     </xs:element> 
@@ -344,12 +349,65 @@ namespace WordpressApi.Controllers
             else {
                 return xml;
             }
-            
         }
 
         [HttpPost]
 
-        public StatusCodeResult RequestInvoice([FromBody]object json) {
+        public async Task<StatusCodeResult> RequestInvoiceAsync([FromBody]object json) {
+
+            try
+            {
+                //convert json to addUser object
+                var requestInvoiceEntity = new RequestInvoice(json.ToString());
+              
+                //Make the call for the UUID                
+                string responseBody = null;
+                var url = "http://192.168.1.2/uuid-master/uuids/frontend/" + requestInvoiceEntity.UserId;
+                using (var client = new HttpClient())
+                using (var request = new HttpRequestMessage(HttpMethod.Get, url))
+                {
+
+                    using (var response = await client
+                        .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
+                        .ConfigureAwait(false))
+                    {
+                        response.EnsureSuccessStatusCode();
+                        responseBody = await response.Content.ReadAsStringAsync();
+                    }
+                }
+
+                //Convert the response from json to dictionary
+                var values = JsonConvert.DeserializeObject<Dictionary<string, string>>(responseBody);
+
+                //add response to addUserEntity uuid
+                requestInvoiceEntity.uuid = values["uuid"];
+
+                //Validate XML
+                var xml = XmlAndXsdValidation(requestInvoiceEntity);
+
+                //when no errors send the message to rabbitmq
+                if (xml != null)
+                {
+                    using (var connection = factory.CreateConnection())
+                    using (var channel = connection.CreateModel())
+                    {
+                        var addUserBody = Encoding.UTF8.GetBytes(xml);
+                        var properties = channel.CreateBasicProperties();
+                        properties.Headers = new Dictionary<string, object>();
+                        properties.Headers.Add("eventType", "frontend.add_invoice");
+                        channel.BasicPublish(exchange: "events.exchange",
+                                         routingKey: "",
+                                         basicProperties: properties,
+                                         body: addUserBody
+                                         );
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+
+                SendMessageToErrorExchange(ex);
+            }
 
             return StatusCode(201);
         }

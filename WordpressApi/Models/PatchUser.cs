@@ -8,7 +8,7 @@ using Newtonsoft.Json.Linq;
 namespace WordpressApi.Models
 {
     [XmlRoot(ElementName = "patch_user")]
-    public class PatchUser: XsdValidation
+    public class PatchUser: IXsdValidation
     {
         [XmlIgnoreAttribute]
         public int UserId { get; set; }
