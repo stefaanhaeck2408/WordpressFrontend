@@ -13,6 +13,7 @@ namespace WordpressApi.Models
         [XmlIgnoreAttribute]
         public int UserId { get; set; }
         public string application_name { get; set; }
+        public string event_id { get; set; }
         public string uuid { get; set; }
 
         public RequestInvoice()
@@ -25,6 +26,7 @@ namespace WordpressApi.Models
             JObject jObject = JObject.Parse(json);
             JToken jInvoice = jObject;
             UserId = (int)jInvoice["UserId"];
+            event_id = jInvoice["EventId"].ToString();
             application_name = "frontend";
         }
     }

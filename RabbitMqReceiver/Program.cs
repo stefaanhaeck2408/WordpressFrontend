@@ -27,6 +27,7 @@ namespace RabbitMqReceiver
         private static string patchUserXsd;
         private static string errorrXsd;
         private static string heartbeatXsd;
+        private static string logXsd;
 
 
         private static void Settings() {
@@ -95,13 +96,68 @@ namespace RabbitMqReceiver
                       </xs:complexType> 
                      </xs:element> 
                     </xs:schema>";
+            logXsd = @"<?xml version='1.0'?> 
+                    <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'> 
+                     <xs:element name='log'> 
+                      <xs:complexType> 
+                       <xs:sequence> 
+                        <xs:element name='application_name' type='xs:string'/> 
+                        <xs:element name='timestamp' type='xs:string'/> 
+                        <xs:element name='message' type='xs:string'/> 
+                       </xs:sequence> 
+                      </xs:complexType> 
+                     </xs:element> 
+                    </xs:schema>";
         }
         static void Main(string[] args)
         {
             Settings();
             //still have to update the uuid with our userid
-            ReceiverRabbitMQ();
+            //ReceiverRabbitMQ();
             //Heartbeat();
+            //SendLogToLogExchange(" test");
+
+        }
+
+        private static void SendLogToLogExchange(string action)
+        {
+            //make log file entity
+            Log log = new Log("Frontend " + action);
+            
+            //Make an XML from the object
+            XmlSerializer xmlSerializer = new XmlSerializer(log.GetType());
+            XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
+            ns.Add("", "");
+
+            string xml;
+            var settings = new XmlWriterSettings { Encoding = Encoding.UTF8, Indent = true };
+            var stringBuilder = new StringBuilder();
+            using (var sww = new ExtendedStringWriter(stringBuilder, Encoding.UTF8))
+            {
+                using (XmlWriter writer = XmlWriter.Create(sww, settings))
+                {
+                    xmlSerializer.Serialize(writer, log, ns);
+                    xml = sww.ToString();
+                }
+            }
+
+            //Validate XML
+            var xmlResponse = XmlAndXsdValidation(xml);
+
+            //when no errors send the message to rabbitmq
+            if (xmlResponse != null)
+            {
+                using (var connection = factory.CreateConnection())
+                using (var channel = connection.CreateModel())
+                {
+                    var addUserBody = Encoding.UTF8.GetBytes(xml);
+                    channel.BasicPublish(exchange: "logs.exchange",
+                                     routingKey: "",
+                                     body: addUserBody
+                                     );
+
+                }
+            }
 
         }
 
@@ -392,6 +448,8 @@ namespace RabbitMqReceiver
                             {
                                 response.EnsureSuccessStatusCode();
                                 responseBody = await response.Content.ReadAsStringAsync();
+
+                                SendLogToLogExchange(" received new user and added the user");
                             }
                         }
                     }
@@ -421,6 +479,8 @@ namespace RabbitMqReceiver
                     {
                         responseUuidHttpClient.EnsureSuccessStatusCode();
                         responseUuid = await responseUuidHttpClient.Content.ReadAsStringAsync();
+
+                        SendLogToLogExchange(" received patch user and updated the user");
                     }
                 }
 
@@ -495,8 +555,12 @@ namespace RabbitMqReceiver
             {
                 xsdData = errorrXsd;
             }
-            else {
-                xsdData = "error";
+            else if (rootname == "log") {
+                xsdData = logXsd;
+            }
+            else
+            {
+                return null;
             }
 
 

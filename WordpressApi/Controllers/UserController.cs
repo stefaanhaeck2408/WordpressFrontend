@@ -91,6 +91,8 @@ namespace WordpressApi.Controllers
                                          basicProperties: properties,
                                          body: addUserBody
                                          );
+
+                        SendLogToLogExchange(" added a user from frontend");
                     }
                 }
             }
@@ -100,6 +102,31 @@ namespace WordpressApi.Controllers
             }
             
             return StatusCode(201);
+        }
+
+        private void SendLogToLogExchange(string action)
+        {
+            //make log file entity
+            Log log = new Log("Frontend " + action);
+
+            //Validate XML
+            var xml = XmlAndXsdValidation(log);
+
+            //when no errors send the message to rabbitmq
+            if (xml != null)
+            {
+                using (var connection = factory.CreateConnection())
+                using (var channel = connection.CreateModel())
+                {
+                    var addUserBody = Encoding.UTF8.GetBytes(xml);                    
+                    channel.BasicPublish(exchange: "logs.exchange",
+                                     routingKey: "",
+                                     body: addUserBody
+                                     );
+                    
+                }
+            }
+
         }
 
         private static void SendMessageToErrorExchange(Exception error) {
@@ -240,6 +267,8 @@ namespace WordpressApi.Controllers
                                          basicProperties: properties,
                                          body: patchUserBody
                                          );
+
+                        SendLogToLogExchange(" updated a user from frontend");
                     }
                 }
             }
@@ -323,7 +352,24 @@ namespace WordpressApi.Controllers
                      <xs:complexType> 
                       <xs:sequence> 
                         <xs:element name='application_name' type='xs:string'/>                        
+                        <xs:element name='event_id' type='xs:string'/>                        
                         <xs:element name='uuid' type='xs:string'/>                         
+                      </xs:sequence> 
+                     </xs:complexType> 
+                    </xs:element> 
+                   </xs:schema>";
+            }
+            if (typeof(Log).IsInstanceOfType(objectThatNeedsValidation))
+            {
+                xsdData =
+                @"<?xml version='1.0'?> 
+                   <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>
+                    <xs:element name='log'> 
+                     <xs:complexType> 
+                      <xs:sequence> 
+                        <xs:element name='application_name' type='xs:string'/>                        
+                        <xs:element name='timestamp' type='xs:string'/>                        
+                        <xs:element name='message' type='xs:string'/>                         
                       </xs:sequence> 
                      </xs:complexType> 
                     </xs:element> 
@@ -394,18 +440,19 @@ namespace WordpressApi.Controllers
                         var addUserBody = Encoding.UTF8.GetBytes(xml);
                         var properties = channel.CreateBasicProperties();
                         properties.Headers = new Dictionary<string, object>();
-                        properties.Headers.Add("eventType", "frontend.add_invoice");
+                        properties.Headers.Add("eventType", "frontend.email_invoice");
                         channel.BasicPublish(exchange: "events.exchange",
                                          routingKey: "",
                                          basicProperties: properties,
                                          body: addUserBody
                                          );
+
+                        SendLogToLogExchange(" request invoice");
                     }
                 }
             }
             catch (Exception ex)
             {
-
                 SendMessageToErrorExchange(ex);
             }
 
