@@ -4,9 +4,9 @@ using System.Text;
 using System.Xml.Serialization;
 using Newtonsoft.Json.Linq;
 
-namespace RabbitMqReceiver.Models
+namespace WordpressApi.DAL.Models
 {   [XmlRoot(ElementName = "patch_user")]
-    public class PatchUser
+    public class PatchUserFromReceiver
     {
         public string applicationName { get; set; }
         public string name { get; set; }
@@ -16,12 +16,12 @@ namespace RabbitMqReceiver.Models
             public string municipal { get; set; }
             public string postalCode { get; set; }
             public string vat { get; set; }
-            public PatchUser()
+            public PatchUserFromReceiver()
             {
 
             }
 
-            public PatchUser(string json)
+            public PatchUserFromReceiver(string json)
             {
                 JObject jObject = JObject.Parse(json);
                 JToken jUser = jObject;

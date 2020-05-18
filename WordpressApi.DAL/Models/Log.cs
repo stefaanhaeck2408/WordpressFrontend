@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
 
-namespace WordpressApi.Models
+namespace WordpressApi.DAL.Models
 {
     [XmlRoot(ElementName = "log")]
     public class Log: IXsdValidation

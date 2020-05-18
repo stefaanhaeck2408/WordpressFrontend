@@ -5,20 +5,20 @@ using System.Threading.Tasks;
 using System.Xml.Serialization;
 using Newtonsoft.Json.Linq;
 
-namespace WordpressApi.Models
+namespace WordpressApi.DAL.Models
 {
     [XmlRoot(ElementName = "email_event")]
-    public class AddEvent
+    public class AddEventFromFrontend
     {
         public string application_name { get; set; }
         public string event_id { get; set; }
 
-        public AddEvent()
+        public AddEventFromFrontend()
         {
 
         }
 
-        public AddEvent(string json)
+        public AddEventFromFrontend(string json)
         {
             JObject jObject = JObject.Parse(json);
             JToken jEvent = jObject;

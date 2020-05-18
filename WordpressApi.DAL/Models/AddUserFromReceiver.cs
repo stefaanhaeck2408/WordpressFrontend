@@ -5,10 +5,10 @@ using System.Threading.Tasks;
 using System.Xml.Serialization;
 using Newtonsoft.Json.Linq;
 
-namespace RabbitMqReceiver.Models
+namespace WordpressApi.DAL.Models
 {
     [XmlRoot(ElementName = "add_user")]
-    public class AddUser
+    public class AddUserFromReceiver
     {
         [XmlIgnoreAttribute]
         public int UserId { get; set; }
@@ -20,12 +20,12 @@ namespace RabbitMqReceiver.Models
         public string municipal { get; set; }
         public string postalCode { get; set; }
         public string vat { get; set; }
-        public AddUser()
+        public AddUserFromReceiver()
         {
 
         }
 
-        public AddUser(string json)
+        public AddUserFromReceiver(string json)
         {
             application_name = "frontend";
             JObject jObject = JObject.Parse(json);

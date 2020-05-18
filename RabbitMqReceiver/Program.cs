@@ -13,9 +13,9 @@ using System.Xml.Serialization;
 using Newtonsoft.Json;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
-using RabbitMqReceiver.Models;
 using WordpressApi;
-
+using WordpressApi.DAL.Models;
+using WordpressApi.Service.Services;
 using WordPressPCL;
 using WordPressPCL.Models;
 
@@ -130,7 +130,7 @@ namespace RabbitMqReceiver
             }
 
             //Validate XML
-            var xmlResponse = XmlAndXsdValidation(xml);
+            var xmlResponse = XsdValidation.XmlStringValidation(xml);
 
             //when no errors send the message to rabbitmq
             if (xmlResponse != null)
@@ -165,7 +165,7 @@ namespace RabbitMqReceiver
                         var xml = Encoding.UTF8.GetString(body);
                         Console.WriteLine(" [x] Received {0}", xml);
 
-                        var xmlValidationResponse = XmlAndXsdValidation(xml);
+                        var xmlValidationResponse = XsdValidation.XmlStringValidation(xml);
 
                         //When no errors in validation make an object out of the xml data
                         if (xmlValidationResponse != null)
@@ -216,7 +216,7 @@ namespace RabbitMqReceiver
             }
 
             //XML validation with XSD
-            var xmlValidationResponse = XmlAndXsdValidation(xml);
+            var xmlValidationResponse = XsdValidation.XmlStringValidation(xml);
 
             if (xmlValidationResponse != null)
             {
@@ -233,13 +233,13 @@ namespace RabbitMqReceiver
         }
 
         private static async System.Threading.Tasks.Task ReceivingNewUserAsync(string xml) {
-            XmlSerializer serializer = new XmlSerializer(typeof(AddUser));
+            XmlSerializer serializer = new XmlSerializer(typeof(AddUserFromReceiver));
 
-            AddUser receivedUser;
+            AddUserFromReceiver receivedUser;
 
             using (StringReader reader = new StringReader(xml))
             {
-                receivedUser = (AddUser)serializer.Deserialize(reader);
+                receivedUser = (AddUserFromReceiver)serializer.Deserialize(reader);
 
                 //Check if user is coming from frontend or other place
                 if (await CheckIfUserIsComingFromOutside(receivedUser.uuid))
@@ -307,13 +307,13 @@ namespace RabbitMqReceiver
         }
 
         private static async System.Threading.Tasks.Task ReceivingPatchUserAsync(string xml) {
-            XmlSerializer serializer = new XmlSerializer(typeof(Models.PatchUser));
+            XmlSerializer serializer = new XmlSerializer(typeof(PatchUserFromReceiver));
 
-            Models.PatchUser receivedUser;
+            PatchUserFromReceiver receivedUser;
 
             using (StringReader reader = new StringReader(xml))
             {
-                receivedUser = (Models.PatchUser)serializer.Deserialize(reader);
+                receivedUser = (PatchUserFromReceiver)serializer.Deserialize(reader);
 
                 //Make request for get /uuids/uuid
                 string responseUuid = null;
@@ -387,7 +387,7 @@ namespace RabbitMqReceiver
             }        
         }
 
-        private static string XmlAndXsdValidation(string objectThatNeedsValidation)
+        /*private static string XmlAndXsdValidation(string objectThatNeedsValidation)
         {
             //XML validation with XSD
             //Select the xsd file
@@ -435,7 +435,7 @@ namespace RabbitMqReceiver
             {
                 return rootname;
             }
-        }
+        }*/
 
         private static HttpContent CreateHttpContent(object content)
         {
@@ -464,139 +464,6 @@ namespace RabbitMqReceiver
                 jtw.Flush();
             }
         }
-        /*
-        private static void ReceiverRabbitMQPatchUsers()
-        {
-            //Make the connection to receive users
-            var factory = new ConnectionFactory()
-            {
-                HostName = "192.168.1.2",
-                Port = /*AmqpTcpEndpoint.UseDefaultPort 5672,
-                UserName = "frontend_user",
-                Password = "frontend_pwd"
-
-            };
-            using (var connection = factory.CreateConnection())
-            using (var channel = connection.CreateModel())
-            {
-                var consumer = new EventingBasicConsumer(channel);
-                consumer.Received += async (model, ea) =>
-                {
-                    //Receiving data
-                    var body = ea.Body.ToArray();
-                    var xml = Encoding.UTF8.GetString(body);
-                    Console.WriteLine(" [x] Received {0}", xml);
-
-                    //Validate received xml
-                    string xsdData =
-                              @"<?xml version='1.0'?> 
-                               <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>
-                                <xs:element name='patch_user'> 
-                                 <xs:complexType> 
-                                  <xs:sequence>
-                                    <xs:element name='application_name' type='xs: string'/>
-                                    <xs:element name='name' type='xs:string'/> 
-                                    <xs:element name='uuid' type='xs:string'/> 
-                                    <xs:element name='email' type='xs:string'/> 
-                                    <xs:element name='street' type='xs:string'/> 
-                                    <xs:element name='municipal' type='xs:string'/> 
-                                    <xs:element name='postalCode' type='xs:string'/> 
-                                    <xs:element name='vat' type='xs:string'/> 
-                                  </xs:sequence> 
-                                 </xs:complexType> 
-                                </xs:element> 
-                               </xs:schema>";
-
-                    XmlSchemaSet schemas = new XmlSchemaSet();
-                    schemas.Add("", XmlReader.Create(new StringReader(xsdData)));
-
-                    var xDoc = XDocument.Parse(xml);
-                    bool errors = false;
-                    xDoc.Validate(schemas, (o, e) =>
-                    {
-                        errors = true;
-                    });
-
-                    //When no errors in validation make an object out of the xml data
-                    if (!errors)
-                    {
-                        XmlSerializer serializer = new XmlSerializer(typeof(PatchUser));
-
-                        PatchUser receivedUser;
-
-                        using (StringReader reader = new StringReader(xml))
-                        {
-                            receivedUser = (PatchUser)serializer.Deserialize(reader);
-
-                            //Make request for get /uuids/uuid
-                            string responseUuid = null;
-                            string url = "http://192.168.1.2/uuids" + receivedUser.uuid;
-                            using (var httpClient = new HttpClient())                                
-                            using (var request = new HttpRequestMessage(HttpMethod.Get, url))                            
-                            {                               
-
-                                using (var responseUuidHttpClient = await httpClient
-                                    .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
-                                    .ConfigureAwait(false))
-                                {
-                                    responseUuidHttpClient.EnsureSuccessStatusCode();
-                                    responseUuid = await responseUuidHttpClient.Content.ReadAsStringAsync();
-                                }
-                            }
-
-                            //Convert the response from json to dictionary
-                            var values = JsonConvert.DeserializeObject<Dictionary<string, string>>(responseUuid);
-
-
-                            //Connect to wordpress
-                            var client = new WordPressClient("http://127.0.0.1/wordpress/wp-json");
-                                client.AuthMethod = WordPressPCL.Models.AuthMethod.JWT;
-                                await client.RequestJWToken("stefaan.haeck@student.ehb.be", "integration");
-
-                            //Get user with userId retrieved from uuid
-                            var user = await client.Users.GetByID(values["frontend"]);
-
-                            //make meta fields
-                            Dictionary<string, string> metadata = new Dictionary<string, string>();
-
-                            if (receivedUser.street != null) {
-                                metadata.Add("street", receivedUser.street);
-                            }
-                            if (receivedUser.name != null)
-                            {
-                                metadata.Add("name", receivedUser.name);
-                            }
-                            if (receivedUser.municipal != null)
-                            {
-                                metadata.Add("municipal", receivedUser.municipal);
-                            }
-                            if (receivedUser.postalCode != null)
-                            {
-                                metadata.Add("postal_code", receivedUser.postalCode);
-                            }
-                            if (receivedUser.vat != null)
-                            {
-                                metadata.Add("vat", receivedUser.vat);
-                            }
-
-                            //Update user values
-                            if (receivedUser.email != "") {
-                                user.UserName = receivedUser.email;
-                                user.Email = receivedUser.email;
-                                user.Meta = metadata; 
-                            }
-                            var response = await client.Users.Update(user);
-                        }
-                    };
-                    channel.BasicConsume(queue: "frontend.queue",
-                                         autoAck: true,
-                                         consumer: consumer);
-
-                    Console.WriteLine(" Press [enter] to exit.");
-                    Console.ReadLine();
-                };
-            }
-        }*/
 
         private static async System.Threading.Tasks.Task<bool> CheckIfUserIsComingFromOutside(string uuid)
         {

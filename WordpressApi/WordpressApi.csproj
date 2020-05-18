@@ -9,5 +9,10 @@
     <PackageReference Include="RabbitMQ.Client" Version="6.0.0" />
   </ItemGroup>
 
+  <ItemGroup>    
+    <ProjectReference Include="..\WordpressApi.DAL\WordpressApi.DAL.csproj" />    
+    <ProjectReference Include="..\WordpressApi.Service\WordpressApi.Service.csproj" />
+  </ItemGroup>
+
 
 </Project>

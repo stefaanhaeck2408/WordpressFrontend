@@ -12,12 +12,11 @@ using System.Xml;
 using System.Xml.Linq;
 using System.Xml.Schema;
 using System.Xml.Serialization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
 using RabbitMQ.Client;
-using RabbitMqReceiver.Models;
-using WordpressApi.Models;
+using WordpressApi.DAL.Models;
+using WordpressApi.Service.Services;
 
 namespace WordpressApi.Controllers
 {
@@ -42,7 +41,7 @@ namespace WordpressApi.Controllers
             try
             {
                 //convert json to addUser object
-                var addUserEntity = new AddUser(json.ToString());
+                var addUserEntity = new AddUserFromFrontend(json.ToString());
 
                 //Create body for requesting UUID for the addUser object
                 var body = new Dictionary<string, string>();
@@ -74,7 +73,7 @@ namespace WordpressApi.Controllers
                 addUserEntity.application_name = "frontend";
 
                 //Validate XML
-                var xml = XmlAndXsdValidation(addUserEntity);
+                var xml = XsdValidation.XmlObjectValidation(addUserEntity);
 
                 //when no errors send the message to rabbitmq
                 if (xml != null)
@@ -110,7 +109,7 @@ namespace WordpressApi.Controllers
             Log log = new Log("Frontend " + action);
 
             //Validate XML
-            var xml = XmlAndXsdValidation(log);
+            var xml = XsdValidation.XmlObjectValidation(log);
 
             //when no errors send the message to rabbitmq
             if (xml != null)
@@ -226,7 +225,7 @@ namespace WordpressApi.Controllers
             try
             {
                 //convert json to addUser object
-                var patchUserEntity = new PatchUser(json.ToString());
+                var patchUserEntity = new PatchUserFromFrontend(json.ToString());
                 
                 //Make the call for the UUID                
                 string responseBody = null;
@@ -252,7 +251,7 @@ namespace WordpressApi.Controllers
                 patchUserEntity.application_name = "frontend";
 
                 //when no errors send the message to rabbitmq
-                string xml = XmlAndXsdValidation(patchUserEntity);
+                string xml = XsdValidation.XmlObjectValidation(patchUserEntity);
                 if (xml != null)
                 {                    
                     using (var connection = factory.CreateConnection())
@@ -279,132 +278,13 @@ namespace WordpressApi.Controllers
             return StatusCode(201);
         }
 
-        private static string XmlAndXsdValidation(IXsdValidation objectThatNeedsValidation) {
-
-            //Make an XML from the object
-            XmlSerializer xmlSerializer = new XmlSerializer(objectThatNeedsValidation.GetType());
-            XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
-            ns.Add("", "");
-
-            string xml;
-            var settings = new XmlWriterSettings { Encoding = Encoding.UTF8, Indent = true };
-            var stringBuilder = new StringBuilder();
-            using (var sww = new ExtendedStringWriter(stringBuilder, Encoding.UTF8))
-            {
-                using (XmlWriter writer = XmlWriter.Create(sww, settings))
-                {
-                    xmlSerializer.Serialize(writer, objectThatNeedsValidation, ns);
-                    xml = sww.ToString();
-                }
-            }
-
-            //XML validation with XSD
-
-            //Select the xsd file
-            string xsdData = "";
-            if (typeof(PatchUser).IsInstanceOfType(objectThatNeedsValidation)) { 
-                xsdData =
-                @"<?xml version='1.0'?> 
-                   <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>
-                    <xs:element name='patch_user'> 
-                     <xs:complexType> 
-                      <xs:sequence>
-                        <xs:element name='application_name' type='xs:string'/> 
-                        <xs:element name='name' type='xs:string'/> 
-                        <xs:element name='uuid' type='xs:string'/> 
-                        <xs:element name='email' type='xs:string'/> 
-                        <xs:element name='street' type='xs:string'/> 
-                        <xs:element name='municipal' type='xs:string'/> 
-                        <xs:element name='postalCode' type='xs:string'/> 
-                        <xs:element name='vat' type='xs:string'/> 
-                      </xs:sequence> 
-                     </xs:complexType> 
-                    </xs:element> 
-                   </xs:schema>";
-            }
-            if (typeof(AddUser).IsInstanceOfType(objectThatNeedsValidation))
-            {
-                xsdData =
-                @"<?xml version='1.0'?> 
-                   <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>
-                    <xs:element name='add_user'> 
-                     <xs:complexType> 
-                      <xs:sequence> 
-                        <xs:element name='application_name' type='xs:string'/>
-                        <xs:element name='name' type='xs:string'/> 
-                        <xs:element name='uuid' type='xs:string'/> 
-                        <xs:element name='email' type='xs:string'/> 
-                        <xs:element name='street' type='xs:string'/> 
-                        <xs:element name='municipal' type='xs:string'/> 
-                        <xs:element name='postalCode' type='xs:string'/> 
-                        <xs:element name='vat' type='xs:string'/> 
-                      </xs:sequence> 
-                     </xs:complexType> 
-                    </xs:element> 
-                   </xs:schema>";
-            }
-            if (typeof(RequestInvoice).IsInstanceOfType(objectThatNeedsValidation))
-            {
-                xsdData =
-                @"<?xml version='1.0'?> 
-                   <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>
-                    <xs:element name='email_invoice'> 
-                     <xs:complexType> 
-                      <xs:sequence> 
-                        <xs:element name='application_name' type='xs:string'/>                        
-                        <xs:element name='event_id' type='xs:string'/>                        
-                        <xs:element name='uuid' type='xs:string'/>                         
-                      </xs:sequence> 
-                     </xs:complexType> 
-                    </xs:element> 
-                   </xs:schema>";
-            }
-            if (typeof(Log).IsInstanceOfType(objectThatNeedsValidation))
-            {
-                xsdData =
-                @"<?xml version='1.0'?> 
-                   <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>
-                    <xs:element name='log'> 
-                     <xs:complexType> 
-                      <xs:sequence> 
-                        <xs:element name='application_name' type='xs:string'/>                        
-                        <xs:element name='timestamp' type='xs:string'/>                        
-                        <xs:element name='message' type='xs:string'/>                         
-                      </xs:sequence> 
-                     </xs:complexType> 
-                    </xs:element> 
-                   </xs:schema>";
-            }
-
-            XmlSchemaSet schemas = new XmlSchemaSet();
-            schemas.Add("", XmlReader.Create(new StringReader(xsdData)));
-
-            //Validation of XML
-            var xDoc = XDocument.Parse(xml);
-            bool errors = false;
-            xDoc.Validate(schemas, (o, e) =>
-            {
-                errors = true;
-            });
-
-            //Return null when validation has errors
-            if (errors)
-            {
-                return null;
-            }
-            else {
-                return xml;
-            }
-        }
-
         [HttpPost]
-
         public async Task<StatusCodeResult> RequestInvoiceAsync([FromBody]object json) {
 
             try
             {
                 //convert json to addUser object
-                var requestInvoiceEntity = new RequestInvoice(json.ToString());
+                var requestInvoiceEntity = new RequestInvoiceFromFrontend(json.ToString());
               
                 //Make the call for the UUID                
                 string responseBody = null;
@@ -429,7 +309,7 @@ namespace WordpressApi.Controllers
                 requestInvoiceEntity.uuid = values["uuid"];
 
                 //Validate XML
-                var xml = XmlAndXsdValidation(requestInvoiceEntity);
+                var xml = XsdValidation.XmlObjectValidation(requestInvoiceEntity);
 
                 //when no errors send the message to rabbitmq
                 if (xml != null)

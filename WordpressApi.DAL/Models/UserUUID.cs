@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace WordpressApi.Models
+namespace WordpressApi.DAL.Models
 {
     public class UserUUID
     {

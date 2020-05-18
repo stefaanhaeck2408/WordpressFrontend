@@ -5,10 +5,10 @@ using System.Threading.Tasks;
 using System.Xml.Serialization;
 using Newtonsoft.Json.Linq;
 
-namespace WordpressApi.Models
+namespace WordpressApi.DAL.Models
 {
     [XmlRoot(ElementName = "patch_user")]
-    public class PatchUser: IXsdValidation
+    public class PatchUserFromFrontend: IXsdValidation
     {
         [XmlIgnoreAttribute]
         public int UserId { get; set; }
@@ -21,12 +21,12 @@ namespace WordpressApi.Models
         public string postalCode { get; set; }
         public string vat { get; set; }
 
-        public PatchUser()
+        public PatchUserFromFrontend()
         {
 
         }
 
-        public PatchUser(string json)
+        public PatchUserFromFrontend(string json)
         {
             JObject jObject = JObject.Parse(json);
             JToken jUser = jObject;

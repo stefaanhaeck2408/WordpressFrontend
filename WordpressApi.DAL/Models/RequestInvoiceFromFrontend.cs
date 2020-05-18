@@ -5,10 +5,10 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
 
-namespace WordpressApi.Models
+namespace WordpressApi.DAL.Models
 {
     [XmlRoot(ElementName = "email_invoice")]
-    public class RequestInvoice : IXsdValidation
+    public class RequestInvoiceFromFrontend : IXsdValidation
     {
         [XmlIgnoreAttribute]
         public int UserId { get; set; }
@@ -16,12 +16,12 @@ namespace WordpressApi.Models
         public string event_id { get; set; }
         public string uuid { get; set; }
 
-        public RequestInvoice()
+        public RequestInvoiceFromFrontend()
         {
             
         }
 
-        public RequestInvoice(string json)
+        public RequestInvoiceFromFrontend(string json)
         {
             JObject jObject = JObject.Parse(json);
             JToken jInvoice = jObject;

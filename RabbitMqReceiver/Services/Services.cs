@@ -6,7 +6,7 @@ using System.Net.Http;
 using System.Text;
 using System.Xml.Serialization;
 using Newtonsoft.Json;
-using RabbitMqReceiver.Models;
+using WordpressApi.DAL.Models;
 using WordPressPCL;
 using WordPressPCL.Client;
 using WordPressPCL.Models;
@@ -37,13 +37,13 @@ namespace RabbitMqReceiver.Services
 
         public async System.Threading.Tasks.Task<WordPressPCL.Models.User> ReceivingPatchUserAsync(string xml)
         {
-            XmlSerializer serializer = new XmlSerializer(typeof(PatchUser));
+            XmlSerializer serializer = new XmlSerializer(typeof(PatchUserFromReceiver));
 
-            PatchUser receivedUser;
+            PatchUserFromReceiver receivedUser;
 
             using (StringReader reader = new StringReader(xml))
             {
-                receivedUser = (PatchUser)serializer.Deserialize(reader);
+                receivedUser = (PatchUserFromReceiver)serializer.Deserialize(reader);
 
                 //Make request for get /uuids/uuid
                 string responseUuid = null;

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Xml.Serialization;
 
-namespace RabbitMqReceiver.Models
+namespace WordpressApi.DAL.Models
 {
     [XmlRoot(ElementName = "error")]
     public class CustomError
