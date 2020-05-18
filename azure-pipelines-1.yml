@@ -36,3 +36,9 @@ steps:
     cd C:\Users\admin\Source\Repos\WordpressApi
     git pull origin master
   displayName: 'Updating git repo'
+
+- script: |
+    nssm start wordpressApi
+    nssm start rabbitMqReceiver
+  displayName: 'starting services'
+
