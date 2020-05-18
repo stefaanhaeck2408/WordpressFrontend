@@ -7,10 +7,11 @@ using Newtonsoft.Json.Linq;
 
 namespace WordpressApi.Models
 {
-    [XmlRoot(ElementName = "add_event")]
+    [XmlRoot(ElementName = "email_event")]
     public class AddEvent
     {
-        public int eventId { get; set; }
+        public string application_name { get; set; }
+        public string event_id { get; set; }
 
         public AddEvent()
         {
@@ -21,7 +22,8 @@ namespace WordpressApi.Models
         {
             JObject jObject = JObject.Parse(json);
             JToken jEvent = jObject;
-            eventId = (int)jEvent["EventId"].First;
+            event_id = jEvent["EventId"].First.ToString();
+            application_name = "frontend";
         }
     }
 }

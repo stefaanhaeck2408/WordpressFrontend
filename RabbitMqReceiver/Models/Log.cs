@@ -4,10 +4,10 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Xml.Serialization;
 
-namespace WordpressApi.Models
+namespace RabbitMqReceiver.Models
 {
     [XmlRoot(ElementName = "log")]
-    public class Log: IXsdValidation
+    public class Log
     {
         public string application_name { get; set; }
         public string timestamp { get; set; }

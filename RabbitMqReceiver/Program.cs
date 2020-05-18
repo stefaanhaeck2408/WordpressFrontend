@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -14,7 +15,7 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitMqReceiver.Models;
 using WordpressApi;
-using WordpressApi.Models;
+
 using WordPressPCL;
 using WordPressPCL.Models;
 
@@ -25,8 +26,7 @@ namespace RabbitMqReceiver
         private static ConnectionFactory factory;
         private static string addUserXsd;
         private static string patchUserXsd;
-        private static string errorrXsd;
-        private static string heartbeatXsd;
+        private static string errorrXsd;        
         private static string logXsd;
 
 
@@ -44,7 +44,7 @@ namespace RabbitMqReceiver
                                     <xs:element name='add_user'> 
                                      <xs:complexType> 
                                       <xs:sequence>
-                                        <xs:element name='application_name' type='xs: string'/>
+                                        <xs:element name='application_name' type='xs:string'/>
                                         <xs:element name='name' type='xs:string'/> 
                                         <xs:element name='uuid' type='xs:string'/> 
                                         <xs:element name='email' type='xs:string'/> 
@@ -61,7 +61,7 @@ namespace RabbitMqReceiver
                                 <xs:element name='patch_user'> 
                                  <xs:complexType> 
                                   <xs:sequence>
-                                    <xs:element name='application_name' type='xs: string'/>
+                                    <xs:element name='application_name' type='xs:string'/>
                                     <xs:element name='name' type='xs:string'/> 
                                     <xs:element name='uuid' type='xs:string'/> 
                                     <xs:element name='email' type='xs:string'/> 
@@ -84,18 +84,7 @@ namespace RabbitMqReceiver
                                     </ xs:sequence >              
                                 </ xs:complexType >               
                             </ xs:element >
-                        </ xs:schema >"; 
-            heartbeatXsd = @"<?xml version='1.0'?> 
-                    <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'> 
-                     <xs:element name='heartbeat'> 
-                      <xs:complexType> 
-                       <xs:sequence> 
-                        <xs:element name='application_name' type='xs:string'/> 
-                        <xs:element name='timestamp' type='xs:string'/> 
-                       </xs:sequence> 
-                      </xs:complexType> 
-                     </xs:element> 
-                    </xs:schema>";
+                        </ xs:schema >";             
             logXsd = @"<?xml version='1.0'?> 
                     <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'> 
                      <xs:element name='log'> 
@@ -112,10 +101,9 @@ namespace RabbitMqReceiver
         static void Main(string[] args)
         {
             Settings();
-            //still have to update the uuid with our userid
-            //ReceiverRabbitMQ();
-            //Heartbeat();
-            //SendLogToLogExchange(" test");
+            
+            ReceiverRabbitMQ();
+            
 
         }
 
@@ -160,64 +148,12 @@ namespace RabbitMqReceiver
             }
 
         }
-
-        private static void Heartbeat() {
-            TimerCallback callback = HeartBeatCall;
-            Timer timer = new Timer(HeartBeatCall, "test", 500, 500);
-            Console.WriteLine("Press any key to exit the sample");
-            Console.ReadLine();
-
-        }
-
-        private static void HeartBeatCall(object objectInfo)
-        {
-            var datetime = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.fff");
-
-            string xml;
-            using (var sww = new StringWriter())
-            {
-                using (XmlWriter writer = XmlWriter.Create(sww))
-                {
-                    writer.WriteStartElement("heartbeat");
-                    writer.WriteElementString("application_name", "frontend");
-                    writer.WriteElementString("timestamp", datetime);
-                    writer.WriteEndElement();
-                    writer.Flush();
-                    xml = sww.ToString();
-                }
-            }
-
-            var xmlResponse = XmlAndXsdValidation(xml);
-
-            if (xmlResponse != null) {
                 
-                using (var connection = factory.CreateConnection())
-                using (var channel = connection.CreateModel())
-                {
-                    var addUserBody = Encoding.UTF8.GetBytes(xml);                    
-                    channel.BasicPublish(exchange: "heartbeats.exchange",
-                                     routingKey: "",                                     
-                                     body: addUserBody
-                                     );
-                }
-            }
-        }
-
-        
         private static void ReceiverRabbitMQ()
-        {
-            /*var factory = new ConnectionFactory()
-                            {
-                                HostName = "192.168.1.2",
-                                Port = /*AmqpTcpEndpoint.UseDefaultPort 5672,
-                                UserName = "frontend_user",
-                                Password = "frontend_pwd"
-
-                            };*/
+        {            
             try
             {
                 //Make the connection to receive
-                 
                 using (var connection = factory.CreateConnection())
                 using (var channel = connection.CreateModel())
                 {                
@@ -229,35 +165,6 @@ namespace RabbitMqReceiver
                         var xml = Encoding.UTF8.GetString(body);
                         Console.WriteLine(" [x] Received {0}", xml);
 
-                        //Validate received xml
-                        /*string xsdData =
-                                  @"<?xml version='1.0'?> 
-                                   <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'>
-                                    <xs:element name='add_user'> 
-                                     <xs:complexType> 
-                                      <xs:sequence> 
-                                        <xs:element name='name' type='xs:string'/> 
-                                        <xs:element name='uuid' type='xs:string'/> 
-                                        <xs:element name='email' type='xs:string'/> 
-                                        <xs:element name='street' type='xs:string'/> 
-                                        <xs:element name='municipal' type='xs:string'/> 
-                                        <xs:element name='postalCode' type='xs:string'/> 
-                                        <xs:element name='vat' type='xs:string'/> 
-                                      </xs:sequence> 
-                                     </xs:complexType> 
-                                    </xs:element> 
-                                   </xs:schema>";
-
-                        XmlSchemaSet schemas = new XmlSchemaSet();
-                        schemas.Add("", XmlReader.Create(new StringReader(xsdData)));
-
-                        var xDoc = XDocument.Parse(xml);
-                        bool errors = false;
-                        xDoc.Validate(schemas, (o, e) =>
-                        {
-                            errors = true;
-                        });*/
-
                         var xmlValidationResponse = XmlAndXsdValidation(xml);
 
                         //When no errors in validation make an object out of the xml data
@@ -268,72 +175,6 @@ namespace RabbitMqReceiver
                             }else if(xmlValidationResponse == "patch_user"){
                                 await ReceivingPatchUserAsync(xml);
                             }
-
-                            /*
-                            XmlSerializer serializer = new XmlSerializer(typeof(AddUser));
-
-                            AddUser receivedUser;
-
-                            using (StringReader reader = new StringReader(xml))
-                            {
-                                receivedUser = (AddUser)serializer.Deserialize(reader);
-
-                                //Check if user is coming from frontend or other place
-                                if (await CheckIfUserIsComingFromOutside(receivedUser.uuid))
-                                {
-
-                                    //Connect to wordpress
-                                    var client = new WordPressClient("http://127.0.0.1/wordpress/wp-json");
-                                    client.AuthMethod = WordPressPCL.Models.AuthMethod.JWT;
-                                    await client.RequestJWToken("stefaan.haeck@student.ehb.be", "integration");
-
-                                    //Make collection of meta data
-                                    Dictionary<string, string> metadata = new Dictionary<string, string>();
-                                                                
-                                    metadata.Add("name", receivedUser.name);
-                                    metadata.Add("street", receivedUser.street);
-                                    metadata.Add("municipal", receivedUser.municipal);
-                                    metadata.Add("postal_code", receivedUser.postalCode);
-                                    metadata.Add("vat", receivedUser.vat);
-
-
-                                    if (await client.IsValidJWToken())
-                                    {
-                                        var user = new User
-                                        {
-                                            UserName = receivedUser.name,
-                                            Email = receivedUser.email,
-                                            Password = receivedUser.name + "pass",
-                                            Meta = metadata
-                                        };
-
-                                        var responseUser = await client.Users.Create(user);
-
-                                        //Create body for requesting UUID for the addUser object
-                                        var bodyUuid = new Dictionary<string, string>();
-                                        bodyUuid.Add("frontend", responseUser.Id.ToString());
-
-                                        //Make the call to patch the UUID                                    
-                                        string responseBody = null;
-                                        string url = "http://192.168.1.2/uuid-master/uuids/" + receivedUser.uuid;
-                                        using (var clientUuid = new HttpClient())
-                                        using (var request = new HttpRequestMessage(HttpMethod.Patch, url))
-                                        using (var httpContent = CreateHttpContent(body))
-                                        {
-                                            request.Content = httpContent;
-
-                                            using (var response = await clientUuid
-                                                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
-                                                .ConfigureAwait(false))
-                                            {
-                                                response.EnsureSuccessStatusCode();
-                                                responseBody = await response.Content.ReadAsStringAsync();
-                                            }
-                                        }
-                                    }
-
-                                }
-                            }*/
                         }
                     
                     };
@@ -354,7 +195,7 @@ namespace RabbitMqReceiver
         {
             CustomError error = new CustomError();
             error.application_name = "frontend";
-            error.timestamp = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.fff");
+            error.timestamp = DateTime.Now.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fff");
             error.message = ex.ToString();
 
             //Make an XML from the error object
@@ -421,54 +262,62 @@ namespace RabbitMqReceiver
                     {
                         var user = new User
                         {
-                            UserName = receivedUser.name,
+                            UserName = receivedUser.email,
                             Email = receivedUser.email,
-                            Password = receivedUser.name + "pass",
+                            Password = "password",
                             Meta = metadata
                         };
+                        try {
+                            var responseUser = await client.Users.Create(user);
 
-                        var responseUser = await client.Users.Create(user);
+                            //Create body for requesting UUID for the addUser object
+                            var bodyUuid = new Dictionary<string, string>();
+                            bodyUuid.Add("frontend", responseUser.Id.ToString());
 
-                        //Create body for requesting UUID for the addUser object
-                        var bodyUuid = new Dictionary<string, string>();
-                        bodyUuid.Add("frontend", responseUser.Id.ToString());
-
-                        //Make the call to patch the UUID                                    
-                        string responseBody = null;
-                        string url = "http://192.168.1.2/uuid-master/uuids/" + receivedUser.uuid;
-                        using (var clientUuid = new HttpClient())
-                        using (var request = new HttpRequestMessage(HttpMethod.Patch, url))
-                        using (var httpContent = CreateHttpContent(xml))
-                        {
-                            request.Content = httpContent;
-
-                            using (var response = await clientUuid
-                                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
-                                .ConfigureAwait(false))
+                            //Make the call to patch the UUID                                    
+                            string responseBody = null;
+                            string url = "http://192.168.1.2/uuid-master/uuids/" + receivedUser.uuid;
+                            using (var clientUuid = new HttpClient())
+                            using (var request = new HttpRequestMessage(HttpMethod.Patch, url))
+                            using (var httpContent = CreateHttpContent(bodyUuid))
                             {
-                                response.EnsureSuccessStatusCode();
-                                responseBody = await response.Content.ReadAsStringAsync();
+                                request.Content = httpContent;
 
-                                SendLogToLogExchange(" received new user and added the user");
+                                using (var response = await clientUuid
+                                    .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
+                                    .ConfigureAwait(false))
+                                {
+                                    //response.EnsureSuccessStatusCode();
+                                    responseBody = await response.Content.ReadAsStringAsync();
+
+                                    SendLogToLogExchange(" received new user and added the user");
+                                    Console.WriteLine("User created at wordpress succesfully!");
+                                }
                             }
                         }
+                        catch (Exception ex) {
+                            Console.WriteLine("Failed to create user at wordprss. Error: " + ex.Message);
+                        }
+                        
+
+                        
                     }
                 }
             }
         }
 
         private static async System.Threading.Tasks.Task ReceivingPatchUserAsync(string xml) {
-            XmlSerializer serializer = new XmlSerializer(typeof(PatchUser));
+            XmlSerializer serializer = new XmlSerializer(typeof(Models.PatchUser));
 
-            PatchUser receivedUser;
+            Models.PatchUser receivedUser;
 
             using (StringReader reader = new StringReader(xml))
             {
-                receivedUser = (PatchUser)serializer.Deserialize(reader);
+                receivedUser = (Models.PatchUser)serializer.Deserialize(reader);
 
                 //Make request for get /uuids/uuid
                 string responseUuid = null;
-                string url = "http://192.168.1.2/uuids" + receivedUser.uuid;
+                string url = "http://192.168.1.2/uuid-master/uuids/" + receivedUser.uuid;
                 using (var httpClient = new HttpClient())
                 using (var request = new HttpRequestMessage(HttpMethod.Get, url))
                 {
@@ -477,10 +326,10 @@ namespace RabbitMqReceiver
                         .SendAsync(request, HttpCompletionOption.ResponseHeadersRead)
                         .ConfigureAwait(false))
                     {
-                        responseUuidHttpClient.EnsureSuccessStatusCode();
+                        //responseUuidHttpClient.EnsureSuccessStatusCode();
                         responseUuid = await responseUuidHttpClient.Content.ReadAsStringAsync();
 
-                        SendLogToLogExchange(" received patch user and updated the user");
+                        
                     }
                 }
 
@@ -494,7 +343,10 @@ namespace RabbitMqReceiver
                 await client.RequestJWToken("stefaan.haeck@student.ehb.be", "integration");
 
                 //Get user with userId retrieved from uuid
-                var user = await client.Users.GetByID(values["frontend"]);
+                var users = await client.Users.GetAll();
+
+                //Select user with matching id
+                var user = users.Where(x => x.Id == int.Parse(values["frontend"])).FirstOrDefault();
 
                 //make meta fields
                 Dictionary<string, string> metadata = new Dictionary<string, string>();
@@ -528,13 +380,16 @@ namespace RabbitMqReceiver
                     user.Meta = metadata;
                 }
                 var response = await client.Users.Update(user);
+
+                if (response != null) {
+                    SendLogToLogExchange(" received patch user and updated the user");
+                }
             }        
         }
 
         private static string XmlAndXsdValidation(string objectThatNeedsValidation)
         {
             //XML validation with XSD
-
             //Select the xsd file
             XDocument xDoc = XDocument.Parse(objectThatNeedsValidation);
             string xsdData;
@@ -546,11 +401,7 @@ namespace RabbitMqReceiver
             else if (rootname == "add_user")
             {
                 xsdData = addUserXsd;
-            }
-            else if (rootname == "heartbeat")
-            {
-                xsdData = heartbeatXsd;
-            }
+            }            
             else if (rootname == "error")
             {
                 xsdData = errorrXsd;
@@ -749,7 +600,7 @@ namespace RabbitMqReceiver
 
         private static async System.Threading.Tasks.Task<bool> CheckIfUserIsComingFromOutside(string uuid)
         {
-            var url = "http://192.168.1.2/uuids/" + uuid;
+            var url = "http://192.168.1.2/uuid-master/uuids/" + uuid;
             var responseBody = "";
             using (var client = new HttpClient())
                 

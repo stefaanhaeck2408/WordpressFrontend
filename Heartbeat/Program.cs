@@ -37,7 +37,7 @@ namespace Heartbeat
 
         private static void HeartBeatCall(object objectInfo)
         {
-            var datetime = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.fff");
+            var datetime = DateTime.Now.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fff");
 
             string xml;
             using (var sww = new StringWriter())
@@ -65,6 +65,8 @@ namespace Heartbeat
                                      routingKey: "",
                                      body: addUserBody
                                      );
+
+                    Console.WriteLine("Heartbeat posted!");
                 }
             }
         }

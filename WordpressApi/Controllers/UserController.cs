@@ -130,7 +130,7 @@ namespace WordpressApi.Controllers
         }
 
         private static void SendMessageToErrorExchange(Exception error) {
-            
+
             CustomError customError = new CustomError();
             customError.application_name = "frontend";
             customError.timestamp = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.fff");

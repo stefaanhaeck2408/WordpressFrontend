@@ -4,9 +4,9 @@ using System.Text;
 using System.Xml.Serialization;
 using Newtonsoft.Json.Linq;
 
-namespace testConnection.Models
+namespace RabbitMqReceiver.Models
 {   [XmlRoot(ElementName = "patch_user")]
-    class PatchUser
+    public class PatchUser
     {
         public string applicationName { get; set; }
         public string name { get; set; }
