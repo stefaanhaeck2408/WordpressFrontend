@@ -111,15 +111,15 @@ namespace WordpressApi.Service.Services
             }
             else if (rootname == "add_user")
             {
-                xsdData = xsdLog;
+                xsdData = xsdAddUser;
             }
             else if (rootname == "patch_user")
             {
-                xsdData = xsdLog;
+                xsdData = xsdPatchUser;
             }
             else if (rootname == "error")
             {
-                xsdData = xsdLog;
+                xsdData = xsdError;
             }
             else
             {
