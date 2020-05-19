@@ -38,7 +38,7 @@ steps:
   displayName: 'Updating git repo'
 
 - script: |
-    nssm start wordpressApi --
+    nssm start wordpressApi
     nssm start rabbitMqReceiver
   displayName: 'starting services'
 
