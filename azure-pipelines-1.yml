@@ -37,8 +37,8 @@ steps:
     git pull origin master
   displayName: 'Updating git repo'
 
-- script: |
-    nssm start wordpressApi
-    nssm start rabbitMqReceiver
-  displayName: 'starting services'
+#- script: |
+#    nssm start wordpressApi
+#    nssm start rabbitMqReceiver
+#  displayName: 'starting services'
 
