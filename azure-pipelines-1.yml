@@ -32,7 +32,7 @@ steps:
     platform: '$(buildPlatform)'
     configuration: '$(buildConfiguration)'
 
-- powershell: |
+- script: |
     cd C:\Users\admin\Source\Repos\WordpressApi
     git pull origin master
   displayName: 'Updating git repo'
