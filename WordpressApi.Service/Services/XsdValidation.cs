@@ -126,6 +126,9 @@ namespace WordpressApi.Service.Services
                 return null;
             }
 
+            if (xsdData == "") {
+                return null;
+            }
 
             XmlSchemaSet schemas = new XmlSchemaSet();
             schemas.Add("", XmlReader.Create(new StringReader(xsdData)));

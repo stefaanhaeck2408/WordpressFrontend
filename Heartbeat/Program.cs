@@ -22,7 +22,7 @@ namespace Heartbeat
                 UserName = "frontend_user",
                 Password = "frontend_pwd"
             };
-
+            //Start service
             Heartbeat();
         }
 
