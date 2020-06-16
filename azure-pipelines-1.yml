@@ -6,44 +6,25 @@
 trigger:
 - master
 
-pool: 'default'
-
-variables:
-  solution: '**/*.sln'
-  buildPlatform: 'Any CPU'
-  buildConfiguration: 'Release'
+pool: default
 
 steps:
 - script: |
     nssm stop wordpressApi
     nssm stop rabbitMqReceiver
-  displayName: 'stopping services'
+  displayName: 'Stopping integration service'
 
-- task: NuGetToolInstaller@1
-
-- task: NuGetCommand@2
-  inputs:
-    restoreSolution: '$(solution)'
-
-- task: VSBuild@1
-  inputs:
-    solution: '$(solution)'
-    msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:PackageLocation="$(build.artifactStagingDirectory)"'
-    platform: '$(buildPlatform)'
-    configuration: '$(buildConfiguration)'
-
-- task: VSTest@2
-  inputs:
-    platform: '$(buildPlatform)'
-    configuration: '$(buildConfiguration)'
-
-- script: |
+- powershell: |
     cd C:\Users\admin\Source\Repos\WordpressApi
     git pull origin master
-  displayName: 'Updating git repo'
+  displayName: 'Updating Git repository'
+
+- powershell: |
+    cd C:\Windows\Microsoft.NET\Framework\v4.0.30319 
+    .\msbuild C:\Users\admin\Source\Repos\WordpressApi\WordpressApi\WordpressApi.csproj /p:Configuration=Release
+  displayName: 'Installing dependencies'
 
 - script: |
     nssm start wordpressApi
     nssm start rabbitMqReceiver
-  displayName: 'starting services'
-
+  displayName: 'Starting integration service'
