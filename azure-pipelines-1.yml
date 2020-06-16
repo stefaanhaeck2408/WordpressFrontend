@@ -14,10 +14,6 @@ steps:
     nssm stop rabbitMqReceiver
   displayName: 'Stopping integration service'
 
-- powershell: |
-    cd C:\Users\admin\Source\Repos\WordpressApi
-    git pull origin master
-  displayName: 'Updating Git repository'
 
 - powershell: |
     cd C:\Windows\Microsoft.NET\Framework\v4.0.30319 
