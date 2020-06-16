@@ -21,7 +21,7 @@ steps:
   displayName: 'Updating git repo'
 
 - powershell: |
-    cd C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\MSBuild\Current\Bin
+    cd "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\MSBuild\Current\Bin"
     .\msbuild C:\Users\admin\Source\Repos\WordpressApi\WordpressApi\WordpressApi.csproj /p:Configuration=Release
   displayName: 'Installing dependencies'
 
