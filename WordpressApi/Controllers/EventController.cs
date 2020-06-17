@@ -54,7 +54,7 @@ namespace WordpressApi.Controllers
                     var addUserBody = Encoding.UTF8.GetBytes(xml);
                     var properties = channel.CreateBasicProperties();
                     properties.Headers = new Dictionary<string, object>();
-                    properties.Headers.Add("eventType", "frontend.email_event");
+                    properties.Headers.Add("eventType", "frontend.add_event");
                     channel.BasicPublish(exchange: "events.exchange",
                                      routingKey: "",
                                      basicProperties: properties,
@@ -72,44 +72,44 @@ namespace WordpressApi.Controllers
             
             return StatusCode(201);
         }
-        /*
-        private static string XmlAndXsdValidation(string objectThatNeedsValidation)
-        {
-            //XML validation with XSD
-            //Select the xsd file
-            XDocument xDoc = XDocument.Parse(objectThatNeedsValidation);
-            string xsdData;
-            string rootname = xDoc.Root.Name.ToString();
-            if (rootname == "email_event")
+
+        [HttpPost]
+        public StatusCodeResult EmailEvent([FromBody]Object json) {
+            var emailEvent = new EmailEvent(json.ToString());
+
+            XmlSerializer xmlSerializer = new XmlSerializer(typeof(EmailEvent));
+            var xml = "";
+
+            using (var sww = new StringWriter())
             {
-                xsdData = xsdEmailEvent;
-            }
-            else
-            {
-                return null;
+                using (XmlWriter writer = XmlWriter.Create(sww))
+                {
+                    xmlSerializer.Serialize(writer, emailEvent);
+                    xml = sww.ToString();
+                }
             }
 
+            //Validate XML
+            var xmlResponse = XsdValidation.XmlStringValidation(xml);
 
-            XmlSchemaSet schemas = new XmlSchemaSet();
-            schemas.Add("", XmlReader.Create(new StringReader(xsdData)));
-
-            //Validation of XML
-            //var xDoc = XDocument.Parse(xml);
-            bool errors = false;
-            xDoc.Validate(schemas, (o, e) =>
+            if (xmlResponse != null)
             {
-                errors = true;
-            });
+                using (var connection = factory.CreateConnection())
+                using (var channel = connection.CreateModel())
+                {
+                    var addUserBody = Encoding.UTF8.GetBytes(xml);
+                    var properties = channel.CreateBasicProperties();
+                    properties.Headers = new Dictionary<string, object>();
+                    properties.Headers.Add("eventType", "frontend.email_event");
+                    channel.BasicPublish(exchange: "events.exchange",
+                                     routingKey: "",
+                                     basicProperties: properties,
+                                     body: addUserBody
+                                     );
 
-            //Return null when validation has errors
-            if (errors)
-            {
-                return null;
+                }
             }
-            else
-            {
-                return rootname;
-            }
-        }*/
+            return StatusCode(201);
+        }
     }
 }
