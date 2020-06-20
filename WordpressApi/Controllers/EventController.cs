@@ -32,38 +32,52 @@ namespace WordpressApi.Controllers
         [HttpPost]
         public StatusCodeResult AddEvent([FromBody]Object json)
         {
-            var addEventEntity = new AddEventFromFrontend(json.ToString());
+            try
+            {
+                var addEventEntity = new AddEventFromFrontend(json.ToString());
 
-            XmlSerializer xmlSerializer = new XmlSerializer(typeof(AddEventFromFrontend));
-            var xml = "";
+                XmlSerializer xmlSerializer = new XmlSerializer(typeof(AddEventFromFrontend));
+                XmlSerializerNamespaces ns = new XmlSerializerNamespaces();
+                ns.Add("", "");
 
-            using (var sww = new StringWriter()) {
-                using (XmlWriter writer = XmlWriter.Create(sww)) {
-                    xmlSerializer.Serialize(writer, addEventEntity);
-                    xml = sww.ToString();
-                }
-            }
+                var xml = "";
 
-            //Validate XML
-            var xmlResponse = XsdValidation.XmlStringValidation(xml);
-
-            if (xmlResponse != null) {
-                using (var connection = factory.CreateConnection())
-                using (var channel = connection.CreateModel())
+                using (var sww = new StringWriter())
                 {
-                    var addUserBody = Encoding.UTF8.GetBytes(xml);
-                    var properties = channel.CreateBasicProperties();
-                    properties.Headers = new Dictionary<string, object>();
-                    properties.Headers.Add("eventType", "frontend.add_event");
-                    channel.BasicPublish(exchange: "events.exchange",
-                                     routingKey: "",
-                                     basicProperties: properties,
-                                     body: addUserBody
-                                     );
-
+                    using (XmlWriter writer = XmlWriter.Create(sww))
+                    {
+                        xmlSerializer.Serialize(writer, addEventEntity, ns);
+                        xml = sww.ToString();
+                    }
                 }
+
+                //Validate XML
+                var xmlResponse = XsdValidation.XmlStringValidation(xml);
+
+                if (xmlResponse != null)
+                {
+                    using (var connection = factory.CreateConnection())
+                    using (var channel = connection.CreateModel())
+                    {
+                        var addUserBody = Encoding.UTF8.GetBytes(xml);
+                        var properties = channel.CreateBasicProperties();
+                        properties.Headers = new Dictionary<string, object>();
+                        properties.Headers.Add("eventType", "frontend.add_event");
+                        channel.BasicPublish(exchange: "events.exchange",
+                                         routingKey: "",
+                                         basicProperties: properties,
+                                         body: addUserBody
+                                         );
+
+                    }
+                }
+
+                return StatusCode(201);
             }
-            return StatusCode(201);
+            catch (Exception ex) { 
+                Sender.SendErrorMessage(ex);
+                return StatusCode(500);
+            }
         }
 
         [HttpPost]
@@ -75,41 +89,38 @@ namespace WordpressApi.Controllers
 
         [HttpPost]
         public StatusCodeResult EmailEvent([FromBody]Object json) {
-            var emailEvent = new EmailEvent(json.ToString());
-
-            XmlSerializer xmlSerializer = new XmlSerializer(typeof(EmailEvent));
-            var xml = "";
-
-            using (var sww = new StringWriter())
+            try
             {
-                using (XmlWriter writer = XmlWriter.Create(sww))
+                //converting json to object
+                var emailEvent = new EmailEvent(json.ToString());
+
+                //Validate XML
+                var xmlResponse = XsdValidation.XmlObjectValidation(emailEvent);
+
+                if (xmlResponse != null)
                 {
-                    xmlSerializer.Serialize(writer, emailEvent);
-                    xml = sww.ToString();
+                    using (var connection = factory.CreateConnection())
+                    using (var channel = connection.CreateModel())
+                    {
+                        var addUserBody = Encoding.UTF8.GetBytes(xmlResponse);
+                        var properties = channel.CreateBasicProperties();
+                        properties.Headers = new Dictionary<string, object>();
+                        properties.Headers.Add("eventType", "frontend.email_event");
+                        channel.BasicPublish(exchange: "events.exchange",
+                                         routingKey: "",
+                                         basicProperties: properties,
+                                         body: addUserBody
+                                         );
+
+                    }
                 }
+                return StatusCode(201);
             }
-
-            //Validate XML
-            var xmlResponse = XsdValidation.XmlStringValidation(xml);
-
-            if (xmlResponse != null)
-            {
-                using (var connection = factory.CreateConnection())
-                using (var channel = connection.CreateModel())
-                {
-                    var addUserBody = Encoding.UTF8.GetBytes(xml);
-                    var properties = channel.CreateBasicProperties();
-                    properties.Headers = new Dictionary<string, object>();
-                    properties.Headers.Add("eventType", "frontend.email_event");
-                    channel.BasicPublish(exchange: "events.exchange",
-                                     routingKey: "",
-                                     basicProperties: properties,
-                                     body: addUserBody
-                                     );
-
-                }
+            catch (Exception ex) {
+                Sender.SendErrorMessage(ex);
+                return StatusCode(500);
             }
-            return StatusCode(201);
+            
         }
     }
 }

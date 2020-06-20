@@ -94,13 +94,12 @@ namespace WordpressApi.Controllers
                         SendLogToLogExchange(" added a user from frontend");
                     }
                 }
+                return StatusCode(201);
             }
             catch (Exception ex) {
-
-                SendMessageToErrorExchange(ex);
-            }
-            
-            return StatusCode(201);
+                Sender.SendErrorMessage(ex);
+                return StatusCode(500);
+            }            
         }
 
         private void SendLogToLogExchange(string action)
@@ -147,7 +146,7 @@ namespace WordpressApi.Controllers
             {
                 using (XmlWriter writer = XmlWriter.Create(sww, settings))
                 {
-                    xmlSerializer.Serialize(writer, error, ns);
+                    xmlSerializer.Serialize(writer, customError, ns);
                     xml = sww.ToString();
                 }
             }
@@ -155,17 +154,17 @@ namespace WordpressApi.Controllers
             //XML validation with XSD
             string xsdData =
                 @"<?xml version='1.0'?>
-                        < xs:schema xmlns:xs = 'http://www.w3.org/2001/XMLSchema' > 
-                            < xs:element name = 'error' >  
-                                < xs:complexType >   
-                                    < xs:sequence >    
-                                        < xs:element name = 'application_name' type = 'xs:string' />       
-                                        < xs:element name = 'timestamp' type = 'xs:string' />          
-                                        < xs:element name = 'message' type = 'xs:string' />             
-                                    </ xs:sequence >              
-                                </ xs:complexType >               
-                            </ xs:element >
-                        </ xs:schema >";
+                        <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'> 
+                            <xs:element name='error'>  
+                                <xs:complexType>   
+                                    <xs:sequence>    
+                                        <xs:element name='application_name' type='xs:string'/>       
+                                        <xs:element name='timestamp' type='xs:string'/>          
+                                        <xs:element name='message' type='xs:string'/>             
+                                    </xs:sequence>              
+                                </xs:complexType>               
+                            </xs:element>
+                        </xs:schema>";
 
             XmlSchemaSet schemas = new XmlSchemaSet();
             schemas.Add("", XmlReader.Create(new StringReader(xsdData)));
@@ -273,7 +272,8 @@ namespace WordpressApi.Controllers
             }
             catch (Exception ex)
             {
-                SendMessageToErrorExchange(ex);                
+                Sender.SendErrorMessage(ex);
+                return StatusCode(500);
             }
             return StatusCode(201);
         }
@@ -333,7 +333,8 @@ namespace WordpressApi.Controllers
             }
             catch (Exception ex)
             {
-                SendMessageToErrorExchange(ex);
+                Sender.SendErrorMessage(ex);
+                return StatusCode(500);
             }
 
             return StatusCode(201);

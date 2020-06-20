@@ -6,7 +6,7 @@ using System.Xml.Serialization;
 namespace WordpressApi.DAL.Models
 {
     [XmlRoot(ElementName = "error")]
-    public class CustomError
+    public class CustomError: IXsdValidation
     {
         public string application_name { get; set; }
         public string timestamp { get; set; }

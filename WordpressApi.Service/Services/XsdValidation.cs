@@ -82,17 +82,17 @@ namespace WordpressApi.Service.Services
                     </xs:element> 
                    </xs:schema>";
         private static string xsdError = @"<?xml version='1.0'?>
-                        < xs:schema xmlns:xs = 'http://www.w3.org/2001/XMLSchema' > 
-                            < xs:element name = 'error' >  
-                                < xs:complexType >   
-                                    < xs:sequence >    
-                                        < xs:element name = 'application_name' type = 'xs:string' />       
-                                        < xs:element name = 'timestamp' type = 'xs:string' />          
-                                        < xs:element name = 'message' type = 'xs:string' />             
-                                    </ xs:sequence >              
-                                </ xs:complexType >               
-                            </ xs:element >
-                        </ xs:schema >"; 
+                        <xs:schema xmlns:xs='http://www.w3.org/2001/XMLSchema'> 
+                            <xs:element name='error'>  
+                                <xs:complexType>   
+                                    <xs:sequence>    
+                                        <xs:element name='application_name' type='xs:string'/>       
+                                        <xs:element name='timestamp' type='xs:string'/>          
+                                        <xs:element name='message' type='xs:string'/>             
+                                    </xs:sequence>              
+                                </xs:complexType>               
+                            </xs:element>
+                        </xs:schema>"; 
 
         public static string XmlStringValidation(string objectThatNeedsValidation)
         {
@@ -197,7 +197,12 @@ namespace WordpressApi.Service.Services
             {
                 xsdData = xsdError;
             }
-            else {
+            else if (typeof(EmailEvent).IsInstanceOfType(objectThatNeedsValidation))
+            {
+                xsdData = xsdEmailEvent;
+            }
+            else
+            {
                 return null;
             }
 

@@ -7,7 +7,7 @@ using System.Xml.Serialization;
 namespace WordpressApi.DAL.Models
 {
     [XmlRoot(ElementName = "email_event")]
-    public class EmailEvent
+    public class EmailEvent:  IXsdValidation
     {
         public string application_name { get; set; }
         public string event_id { get; set; }
