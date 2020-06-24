@@ -31,7 +31,7 @@ namespace WordpressApi.Controllers
         }
         [HttpPost]
         public StatusCodeResult AddEvent([FromBody]Object json)
-        {
+        {/*
             try
             {
                 var addEventEntity = new AddEventFromFrontend(json.ToString());
@@ -77,7 +77,9 @@ namespace WordpressApi.Controllers
             catch (Exception ex) { 
                 Sender.SendErrorMessage(ex);
                 return StatusCode(500);
-            }
+            }*/
+
+            return StatusCode(201);
         }
 
         [HttpPost]
@@ -123,4 +125,6 @@ namespace WordpressApi.Controllers
             
         }
     }
+
+
 }

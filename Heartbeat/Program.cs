@@ -12,6 +12,8 @@ namespace Heartbeat
     class Program
     {
         private static ConnectionFactory factory;
+        private static IConnection connection;
+        private static IModel channel;
 
         static void Main(string[] args)
         {
@@ -22,13 +24,17 @@ namespace Heartbeat
                 UserName = "frontend_user",
                 Password = "frontend_pwd"
             };
+            connection = factory.CreateConnection();
+            channel = connection.CreateModel();
             //Start service
             Heartbeat();
+            
         }
 
         private static void Heartbeat()
         {
             TimerCallback callback = HeartBeatCall;
+            
             Timer timer = new Timer(HeartBeatCall, "test", 500, 500);
             Console.WriteLine("Press any key to exit the sample");
             Console.ReadLine();
@@ -53,13 +59,11 @@ namespace Heartbeat
                 }
             }
 
-            var xmlResponse = XmlAndXsdValidation(xml);
+            //var xmlResponse = XmlAndXsdValidation(xml);
 
-            if (xmlResponse != null)
+            if (xml != null)
             {
-                using (var connection = factory.CreateConnection())
-                using (var channel = connection.CreateModel())
-                {
+                
                     var addUserBody = Encoding.UTF8.GetBytes(xml);
                     channel.BasicPublish(exchange: "heartbeats.exchange",
                                      routingKey: "",
@@ -67,10 +71,10 @@ namespace Heartbeat
                                      );
 
                     Console.WriteLine("Heartbeat posted!");
-                }
+               }
             }
         }
-
+    /*
         private static string XmlAndXsdValidation(string objectThatNeedsValidation)
         {
             //XML validation with XSD
@@ -119,6 +123,6 @@ namespace Heartbeat
             {
                 return rootname;
             }
-        }
+        }*/
     }
-}
+
